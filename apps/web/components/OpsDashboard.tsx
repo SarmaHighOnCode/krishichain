@@ -18,7 +18,7 @@
  * server-side, where CORS doesn't apply.
  */
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { toNodeHealth, ZERO_ROOT, type NodeHealth, type OpsSummary } from "../lib/ops";
 
@@ -203,13 +203,37 @@ function SessionTrend({ history }: { history: TrendPoint[] }) {
   );
 }
 
+/** One badge class + label per `NodeStatus` — "buffering" reuses the same `.badge--pending`
+ *  visual language as "pending anchor" elsewhere: an honest, expected, non-alarming
+ *  intermediate state, not a failure. */
+function statusBadgeClass(status: NodeHealth["status"]): string {
+  if (status === "online") return "badge--ok";
+  if (status === "buffering") return "badge--pending";
+  return "badge--bad";
+}
+
+/**
+ * A transient, honestly-observed note for one device's backlog-recovery — never a fabricated
+ * progress percentage. Derived purely from `bufferDepth` values this browser tab has actually
+ * polled: when a depth that was previously nonzero drops (or reaches zero), that's real
+ * evidence the store-and-forward backlog is draining (H1-08: pull WiFi, restore it, the
+ * backlog uploads oldest-first). The note fades once the value has sat at its current level
+ * for a couple of polls.
+ */
+interface BacklogNote {
+  text: string;
+  observedAt: number;
+}
+
+const BACKLOG_NOTE_TTL_MS = 9000;
+
 /**
  * Per-device table, fed by `summary.nodes` — real rows from the gateway's `GET /ops/nodes` /
  * `GET /ops/summary` (S1-14/S1-15 landed a real per-node health store; this used to be a
  * permanently-empty honest stub before that endpoint existed). `status` is the gateway's own
  * computed `online` flag, not re-derived here — see `toNodeHealth` in lib/ops.ts.
  */
-function NodeHealthTable({ nodes }: { nodes: NodeHealth[] }) {
+function NodeHealthTable({ nodes, backlogNotes }: { nodes: NodeHealth[]; backlogNotes: Map<string, BacklogNote> }) {
   return (
     <div className="dash-panel">
       <p className="dash-panel__title">Node health</p>
@@ -225,24 +249,31 @@ function NodeHealthTable({ nodes }: { nodes: NodeHealth[] }) {
               <th>Device</th>
               <th>Last seen</th>
               <th>Buffer depth</th>
+              <th>Battery</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {nodes.map((node) => (
-              <tr key={node.address}>
-                <td>
-                  <code>{node.address}</code>
-                </td>
-                <td>{new Date(node.lastSeen).toLocaleTimeString()}</td>
-                <td className="dash-table__tnum">{node.bufferDepth ?? "—"}</td>
-                <td>
-                  <span className={`badge ${node.status === "online" ? "badge--ok" : "badge--bad"}`}>
-                    {node.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {nodes.map((node) => {
+              const note = backlogNotes.get(node.address);
+              const noteVisible = note && Date.now() - note.observedAt < BACKLOG_NOTE_TTL_MS;
+              return (
+                <tr key={node.address}>
+                  <td>
+                    <code>{node.address}</code>
+                    {noteVisible && (
+                      <div className="muted dash-table__backlog-note">{note.text}</div>
+                    )}
+                  </td>
+                  <td>{new Date(node.lastSeen).toLocaleTimeString()}</td>
+                  <td className="dash-table__tnum">{node.bufferDepth ?? "—"}</td>
+                  <td className="dash-table__tnum">{node.bat === null ? "—" : `${node.bat}%`}</td>
+                  <td>
+                    <span className={`badge ${statusBadgeClass(node.status)}`}>{node.status}</span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -259,8 +290,12 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
   const [history, setHistory] = useState<TrendPoint[]>(
     initialSummary ? [{ t: Date.now(), records: initialSummary.records }] : [],
   );
-  // Forces a re-render once a second so "updated Xs ago" counts up between polls, without
-  // itself triggering a network call.
+  // Last few observed bufferDepth values per device, across this tab's own polls — the raw
+  // material for the backlog-recovery note below. Never persisted, never fabricated.
+  const backlogHistoryRef = useRef<Map<string, number[]>>(new Map());
+  const [backlogNotes, setBacklogNotes] = useState<Map<string, BacklogNote>>(new Map());
+  // Forces a re-render once a second so "updated Xs ago" counts up between polls, and so a
+  // backlog note actually fades on schedule instead of only re-evaluating on the next poll.
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -279,6 +314,34 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
         setLastUpdated(Date.now());
         setIsLive(true);
         setHistory((h) => [...h, { t: Date.now(), records: result.records }].slice(-40));
+
+        // Backlog-recovery: compare this poll's bufferDepth against the last few observed for
+        // the same device. A drop from a nonzero depth is real, directly-observed evidence the
+        // store-and-forward backlog is draining — never a fabricated progress percentage.
+        // `backlogHistoryRef` is a ref (not state) purely to avoid re-running this effect on
+        // every poll; the derived notes themselves live in state so the table re-renders.
+        const now = Date.now();
+        const newEntries: Array<[string, BacklogNote]> = [];
+        for (const node of result.nodes) {
+          const depth = node.bufferDepth ?? 0;
+          const observed = backlogHistoryRef.current.get(node.dev) ?? [];
+          const previousDepth = observed.length > 0 ? observed[observed.length - 1] : null;
+          backlogHistoryRef.current.set(node.dev, [...observed, depth].slice(-5));
+
+          if (previousDepth !== null && previousDepth > 0 && depth < previousDepth) {
+            newEntries.push([
+              node.dev,
+              { text: depth === 0 ? "backlog cleared" : `draining backlog: ${previousDepth} → ${depth}`, observedAt: now },
+            ]);
+          }
+        }
+        if (newEntries.length > 0) {
+          setBacklogNotes((prev) => {
+            const next = new Map(prev);
+            for (const [dev, note] of newEntries) next.set(dev, note);
+            return next;
+          });
+        }
       } else {
         // Gateway unreachable this tick: keep the last-known-good numbers on screen and mark
         // the feed stale rather than blanking the page or throwing. Polling keeps retrying.
@@ -382,7 +445,7 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
         </>
       )}
 
-      <NodeHealthTable nodes={nodes} />
+      <NodeHealthTable nodes={nodes} backlogNotes={backlogNotes} />
 
       <style>{`
         .dash-hero {
@@ -596,6 +659,12 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
 
         .dash-table__tnum {
           font-feature-settings: "tnum";
+        }
+
+        .dash-table__backlog-note {
+          margin-top: 2px;
+          font-size: 0.72rem;
+          font-family: var(--font-mono);
         }
 
         .dash-table tbody tr:hover {

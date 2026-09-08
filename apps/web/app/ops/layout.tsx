@@ -9,6 +9,7 @@
 
 import type { ReactNode } from "react";
 
+import { BreachBanner } from "../../components/BreachBanner";
 import { DashboardNav } from "./DashboardNav";
 import { DashboardTopbar } from "./DashboardTopbar";
 import "./dashboard-theme.css";
@@ -38,6 +39,8 @@ export default function OpsLayout({ children }: { children: ReactNode }) {
 
       <div className="dash-main">
         <DashboardTopbar network={network} gatewayUrl={GATEWAY_URL} />
+
+        <BreachBanner />
 
         <div className="dash-content">{children}</div>
       </div>
