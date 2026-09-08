@@ -14,6 +14,16 @@
  *   2. every 10 s also saves one JPEG to /bringup/c<N>.jpg on the SD card,
  *      which opens in any photo viewer — plus mean brightness on serial
  *      (the lid-verdict signal: bright room vs dark sealed box)
+ *   3. white flash LED (GPIO4) is OFF by default and toggled on demand
+ *      (serial FLASH / NOFLASH, or the web page link). Reason: the lid
+ *      verdict reads AMBIENT light — firing the flash inside a sealed box
+ *      lights it up and every capture reads "OPEN". Flash is for seeing
+ *      inside the dark, verdict is for knowing it was dark. Never both
+ *      on the same frame.
+ *   SD runs in 1-bit mode (CLK 14 / CMD 15 / D0 2) — this is what FREES
+ *   GPIO4 for the flash. In 4-bit mode GPIO4 becomes SD DATA1 and the
+ *   flash + SD fight each other. Cost of 1-bit is ~4x slower writes,
+ *   irrelevant at one JPEG per 10 s.
  *
  * Expected serial (115200):
  *   cam-bringup ok
@@ -100,19 +110,33 @@ const char* kWifiSsid = "krishichain";  // TODO: serial `WIFI <ssid> <pass>`
 const char* kWifiPass = "krishichain";
 uint8_t last_mean = 0;
 uint32_t last_bytes = 0;
+bool flash_on = false;  // white LED GPIO4 — OFF unless asked (see header)
 WebServer* server = nullptr;
 
+void setFlash(bool on) {
+  flash_on = on;
+  digitalWrite(4, on ? HIGH : LOW);
+}
+
 void handleRoot() {
-  char html[1024];
+  char html[1152];
   snprintf(html, sizeof(html),
            "<html><head><meta http-equiv='refresh' content='5'></head><body>"
            "<h2>KrishiChain CAM bring-up</h2>"
-           "<p>last cap #%u: brightness=%u bytes=%u</p>"
+           "<p>last cap #%u: brightness=%u bytes=%u flash=%s</p>"
+           "<p><a href='/flash'>toggle flash</a> (white LED, for seeing in the dark)</p>"
            "<img src='/shot.jpg' style='max-width:100%%'>"
            "<p><a href='/shot.jpg'>full capture</a> (refreshes every 5 s)</p>"
            "</body></html>",
-           cap_no == 0 ? 0 : cap_no - 1, last_mean, last_bytes);
+           cap_no == 0 ? 0 : cap_no - 1, last_mean, last_bytes, flash_on ? "ON" : "off");
   server->send(200, "text/html", html);
+}
+
+void handleFlash() {
+  setFlash(!flash_on);
+  Serial.printf("flash %s\n", flash_on ? "ON" : "off");
+  server->sendHeader("Location", "/");
+  server->send(303, "text/plain", "");
 }
 
 void handleShot() {
@@ -136,6 +160,8 @@ void setup() {
 #ifdef ARDUINO_ARCH_ESP32
   pinMode(33, OUTPUT);  // AI Thinker red lamp, active low
   digitalWrite(33, HIGH);
+  pinMode(4, OUTPUT);  // white flash LED — starts OFF (see header)
+  digitalWrite(4, LOW);
 
   sensor_t* s = nullptr;
   if (!cameraBegin()) {
@@ -146,7 +172,7 @@ void setup() {
   Serial.printf("camera: %s JPEG SVGA, PSRAM frame buffer\n",
                 s != nullptr ? "OV2640" : "unknown sensor");
 
-  SD_MMC.setPins(/*clk=*/14, /*cmd=*/15, /*d0=*/2);
+  SD_MMC.setPins(/*clk=*/14, /*cmd=*/15, /*d0=*/2);  // 1-bit: frees GPIO4 for flash
   sd_ok = SD_MMC.begin("/sdcard", true);
   if (!sd_ok) {
     Serial.println("sd: MOUNT FAILED — captures still print, nothing is archived");
@@ -164,6 +190,7 @@ void setup() {
     server = new WebServer(80);
     server->on("/", handleRoot);
     server->on("/shot.jpg", handleShot);
+    server->on("/flash", handleFlash);
     server->begin();
   } else {
     Serial.println("wifi: FAILED — SD captures continue, no live page");
@@ -191,6 +218,20 @@ bool archiveJpeg(unsigned no, const uint8_t* jpg, size_t len, uint8_t mean) {
 void loop() {
 #ifdef ARDUINO_ARCH_ESP32
   if (server != nullptr) server->handleClient();
+
+  // Serial bench controls: FLASH / NOFLASH toggle the white LED.
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    cmd.toUpperCase();
+    if (cmd == "FLASH") {
+      setFlash(true);
+      Serial.println("flash ON — verdict frames will read bright, use for seeing only");
+    } else if (cmd == "NOFLASH") {
+      setFlash(false);
+      Serial.println("flash off — verdict reads ambient again");
+    }
+  }
 
   static uint32_t last_cap_ms = 0;
   if (millis() - last_cap_ms < 10000) {

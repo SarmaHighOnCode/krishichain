@@ -62,8 +62,21 @@ Checks:
 - [ ] Cover the lens → feed goes dark, `mean` drops, red lamp turns off.
   Uncover → bright again, lamp on. That swing IS the lid verdict signal
   (threshold 40): dark sealed box = `lid=shut`, bright room = `lid=OPEN`
+- [ ] White flash: type `FLASH` in serial (or tap "toggle flash" on the web
+  page) → bright white LED fires. Type `NOFLASH` to kill it. OFF by default
 - [ ] `sd: MOUNT FAILED` → reseat the card, confirm FAT32, retry (captures
       still print — the card is backup, not blocking, at this stage)
+
+Flash vs lid verdict — read this before the demo: the verdict reads AMBIENT
+light, so firing the flash inside a sealed box lights it up and every frame
+reports `lid=OPEN`. Flash is for SEEING inside the dark (judge moment), the
+verdict is for KNOWING it was dark (evidence moment). Never both on one frame:
+flash off for verdict captures, flash on only when you want a visible photo.
+
+1-bit SD note: the SD runs CLK 14 / CMD 15 / D0 2 in 1-bit mode. That is what
+frees GPIO4 for the flash — in 4-bit mode GPIO4 becomes SD DATA1 and the two
+fight. Cost is ~4x slower writes, irrelevant at one JPEG per 10 s. Nothing to
+configure; `SD_MMC.begin("/sdcard", true)` already selects it.
 
 Troubleshooting:
 
