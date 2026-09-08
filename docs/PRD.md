@@ -171,8 +171,9 @@ cannot be forged by the party holding the goods, and cannot be denied afterwards
 
 1. Scan QR → `/verify/<lotId>`.
 2. Page renders the journey timeline from the off-chain store.
-3. **Verify independently** → the browser fetches the anchor root directly from a public Polygon
-   Amoy RPC, recomputes `keccak256` up the Merkle path from the displayed records, compares roots.
+3. **Verify independently** → the browser fetches the anchor root directly from the local chain
+   node (a process independent of the gateway that served the record — see §12 R2, cut),
+   recomputes `keccak256` up the Merkle path from the displayed records, compares roots.
 4. Badge shows one of: `VERIFIED` · `PENDING ANCHOR` · `FLAGGED — COLD CHAIN BREACH` ·
    `UNVERIFIABLE — CHAIN GAP`.
 
@@ -214,7 +215,7 @@ Priority: **P0** = demo fails without it · **P1** = demo is weak without it · 
 | SC-04 | `BatchAnchor`: `anchor(root, leafCount, prevRoot)` + anchor chaining | P0 | Anchors form their own hash chain; gaps detectable on-chain |
 | SC-05 | On-chain custody signature verification (`ecrecover`, EIP-191) | P1 | Forged handoff reverts |
 | SC-06 | Gas budget: anchor ≤ 80,000 gas | P1 | Asserted in CI; measured 74,775 |
-| SC-07 | Identical deploy to local chain and Polygon Amoy | P0 | One command per target; addresses written to `deployments/` |
+| SC-07 | ~~Identical deploy to local chain and Polygon Amoy~~ | — | **Cut** — §12 R2. Deploy targets the local chain only; addresses written to `deployments/`. |
 | SC-08 | ≥ 90% line coverage on `LotRegistry` and `BatchAnchor` | P1 | CI gate |
 
 ### 7.3 Gateway — owner **S1**
@@ -385,7 +386,6 @@ optimisation; it is the reason the product can exist.
 - [ ] Tamper test: lid opened → flagged on the consumer page within 10 s
 - [ ] Client-side verification succeeds with the gateway process killed
 - [ ] Hand-edit a record in the DB → badge flips to `UNVERIFIABLE`
-- [ ] Same contracts live on Polygon Amoy with a shareable explorer link
 
 ### Engineering
 
@@ -401,7 +401,7 @@ optimisation; it is the reason the product can exist.
 | # | Risk | L | I | Mitigation | Owner |
 |---|---|---|---|---|---|
 | R1 | Venue WiFi blocks the node or the RPC | High | High | Local chain + phone hotspot + gateway on the demo laptop; the whole demo runs offline by design (NFR-09) | H1 |
-| R2 | Faucet dry / Amoy RPC down on demo day | Med | High | Contracts pre-deployed and pre-funded **48 h ahead**; Amoy is the bonus link, not the demo path | S1 |
+| R2 | ~~Faucet dry / Amoy RPC down on demo day~~ | — | — | **Retired.** A public Amoy mirror was built and deliberately dropped (§13, and see the "why blockchain at all" answer in `JUDGING.md` for the honest cost of that decision) — the demo runs local-only, so this risk no longer applies | S1 |
 | R3 | A board dies on stage | Med | High | Pre-flashed spare board (HW-08) + recorded fallback video | H2 |
 | R4 | secp256k1 signing too slow on ESP32 | Low | High | Benchmark **day 1** (~40 ms expected with micro-ecc); fallback to Ed25519 verified off-chain only | H1 |
 | R5 | DHT22 flaky / 2 s sampling | Med | Med | Retry + last-good with a staleness flag; SHT31 substitute if available | H2 |
@@ -421,8 +421,8 @@ Merkle batching + anchoring · 4 contracts on the local chain · consumer verify
 client-side proof · ops dashboard · breach detection · 2 physical nodes.
 
 **Should (P1)**
-RFID/QR lot binding · custody handoff with wallet signature · EPCIS 2.0 projection · Amoy
-deployment · recall query · calibration records · label printing.
+RFID/QR lot binding · custody handoff with wallet signature · EPCIS 2.0 projection · recall
+query · calibration records · label printing.
 
 **Could (P2)**
 Deep-sleep power optimisation · LoRa backhaul · map view · audit bundle export · multi-tenant FPO

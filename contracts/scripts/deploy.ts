@@ -2,12 +2,9 @@
  * Deploy the KrishiChain contract set and write the addresses where the gateway and web app
  * can find them.
  *
- *   npm run deploy:local   # hardhat node on 8545 — the offline demo path
- *   npm run deploy:amoy    # Polygon Amoy — the shareable, publicly verifiable path
+ *   npm run deploy:local   # hardhat node on 8545 — the only deploy target (local-only demo)
  *
- * deployments/localhost/ is gitignored (regenerated on every chain restart);
- * deployments/amoy/ IS committed, because the web app reads those addresses to fetch
- * anchor roots client-side.
+ * deployments/localhost/ is gitignored and regenerated on every chain restart.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -21,7 +18,7 @@ const COMMISSIONER_ROLE = keccak256(stringToHex("COMMISSIONER"));
 
 async function main() {
   const [deployer] = await hre.viem.getWalletClients();
-  if (!deployer) throw new Error("no wallet client — is AMOY_PRIVATE_KEY set in .env?");
+  if (!deployer) throw new Error("no wallet client — is the local chain running (`npm run chain`)?");
 
   const admin = deployer.account.address;
   const network = hre.network.name;

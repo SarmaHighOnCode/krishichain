@@ -21,9 +21,10 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "deploy:local": "npm run deploy:local -w contracts",
-    "deploy:amoy": "npm run deploy:amoy -w contracts",
     "gen:vectors": "tsx scripts/gen-vectors.ts",
+    "broker": "tsx scripts/broker.ts",
     "sim": "tsx scripts/sim-node.ts",
+    "sim-swarm": "tsx scripts/sim-swarm.ts",
     "seed": "tsx scripts/seed.ts",
     "e2e": "tsx scripts/e2e-demo.ts",
     "device:register": "tsx scripts/register-device.ts"
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "concurrently": "^9.1.0",
+    "dotenv": "^17.4.2",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

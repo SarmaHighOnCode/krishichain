@@ -238,9 +238,9 @@ void loop() {
 
   if (ack_for_us) {
     ack_for_us = false;
-    uint8_t self[krishi::kAddressLength];
-    memcpy(self, identity.address(), sizeof(self));
-    buffer.releaseThrough(self, last_ack_seq);
+    // releaseThrough is per-device (a HEAD relays for many devices and must say which
+    // one); a LEAF only ever releases its own records.
+    buffer.releaseThrough(identity.address(), last_ack_seq);
   }
 
   uint32_t interval = leaf_link.sampleIntervalMs();
