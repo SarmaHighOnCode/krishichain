@@ -314,7 +314,17 @@ async function main(): Promise<void> {
   // -- 8. Merkle batching and proofs -----------------------------------------
   console.log("\n4. anchoring and proofs");
   await post("/anchor/flush", {});
-  await new Promise((r) => setTimeout(r, 1200));
+
+  // Poll for the anchor rather than sleeping a fixed interval. VERIFIED now means the
+  // anchor transaction CONFIRMED, so a hard-coded wait races the chain: on a slow tick the
+  // on-chain assertions below skip themselves and the run still reports all-green, which is
+  // the worst possible outcome for the one check nobody can afford to lose.
+  for (let i = 0; i < 40; i++) {
+    const anchors = await get("/ops/anchors").catch(() => null);
+    if (!anchors?.enabled) break; // no chain configured; the checks below skip honestly
+    if (anchors.anchors?.some((a: any) => a.status === "ANCHORED")) break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
 
   const lotData = await get(`/lot/${lotA}`);
   const sample = lotData.records?.[0];
@@ -331,6 +341,53 @@ async function main(): Promise<void> {
     check(
       "a tampered leaf does not verify",
       !verifyProof(`0x${"de".repeat(32)}` as Hex, proof.proof, proof.root),
+    );
+  }
+
+  // -- 8b. The lot payload must let a client recompute the leaf ITSELF ---------
+  //
+  // The S2-03 precondition. A browser that verifies the `digest` we handed it has proved
+  // only that our arithmetic is self-consistent. It has to re-encode the twelve canonical
+  // fields of the record it is DISPLAYING and derive the leaf independently — otherwise the
+  // headline claim of the demo is theatre. This asserts the HTTP contract carries enough to
+  // do that, using only fields from the response.
+  if (sample) {
+    const rebuilt: SensorRecord = {
+      v: sample.v,
+      dev: sample.dev,
+      seq: sample.seq,
+      prev: sample.prev,
+      ts: BigInt(sample.ts),
+      tsq: sample.tsq,
+      lot: sample.lot,
+      t: sample.t,
+      h: sample.h,
+      lux: sample.lux,
+      flags: sample.flags,
+      bat: sample.bat,
+    };
+    const independent = recordDigest(rebuilt);
+    check(
+      "a client can recompute the leaf from the lot payload alone (S2-03 precondition)",
+      independent.toLowerCase() === String(sample.digest).toLowerCase(),
+      `recomputed ${independent}, API said ${sample.digest}`,
+    );
+
+    // And the recomputed leaf — not the served one — must be the thing that proves.
+    if (proof?.root) {
+      check(
+        "the INDEPENDENTLY recomputed leaf verifies against the anchored root",
+        verifyProof(independent, proof.proof, proof.root),
+      );
+    }
+
+    // Tamper with a displayed value and the recomputed leaf must stop matching. This is
+    // what makes the number on screen trustworthy rather than merely printed.
+    const lied = recordDigest({ ...rebuilt, t: rebuilt.t + 1 });
+    check(
+      "altering a displayed reading breaks the recomputed leaf",
+      lied.toLowerCase() !== independent.toLowerCase() &&
+        (!proof?.root || !verifyProof(lied, proof.proof, proof.root)),
     );
   }
 

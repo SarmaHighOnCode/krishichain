@@ -682,15 +682,30 @@ app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => 
     recordCount: records.length,
     devices: state.devices,
     incidents: store.incidents.filter((i) => i.lot?.toLowerCase() === lotId),
+    // EVERY canonical field, not just the ones worth displaying (PROTOCOL.md §1.1).
+    //
+    // `v`, `prev`, `lot` and `bat` are here for the browser, not for the UI. S2-03 has to
+    // recompute the leaf from the record it is SHOWING the user — re-encode those twelve
+    // fields, keccak them, and prove that hash is in the anchored tree. Verifying the
+    // `digest` we handed over instead would only prove our own arithmetic is consistent,
+    // which is worth nothing to someone deciding whether to trust us.
+    //
+    // So these four are load-bearing even though nothing renders them. Do not "tidy" them
+    // away as unused: dropping any one of them silently reduces the money moment of the
+    // demo to theatre.
     records: records.map((entry) => ({
+      v: entry.record.v,
       seq: entry.record.seq,
       dev: entry.record.dev,
+      prev: entry.record.prev,
       ts: entry.record.ts.toString(),
       tsq: entry.record.tsq,
+      lot: entry.record.lot,
       t: entry.record.t,
       h: entry.record.h,
       lux: entry.record.lux,
       flags: entry.record.flags,
+      bat: entry.record.bat,
       digest: entry.digest,
       verdict: entry.verdict,
       anchored: isAnchored(entry.digest),

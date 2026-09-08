@@ -170,6 +170,44 @@ public chain is unreachable, and show `PENDING ANCHOR` when neither has landed. 
 as committed as its least-committed record, so one pending record holds the whole lot at
 pending rather than letting a majority round it up.
 
+## Client-side verification (S2-03)
+
+`GET /lot/:lotId` returns **all twelve canonical fields** per record — `v`, `dev`, `seq`,
+`prev`, `ts`, `tsq`, `lot`, `t`, `h`, `lux`, `flags`, `bat` — not just the ones worth
+displaying. Four of them render nowhere; they are there so the browser can do this:
+
+```ts
+import { recordDigest, verifyProof } from "@krishichain/core";
+
+// 1. Recompute the leaf from the record you are SHOWING the user.
+const leaf = recordDigest({ ...r, ts: BigInt(r.ts) });
+
+// 2. Read the root from the chain — NOT from `proof.root`.
+const root = await client.readContract({
+  address: proof.anchors.public.contract,   // or .local when offline
+  abi: [{ type: "function", name: "getRoot", stateMutability: "view",
+          inputs: [{ name: "index", type: "uint256" }], outputs: [{ type: "bytes32" }] }],
+  functionName: "getRoot",
+  args: [BigInt(proof.anchorIndex)],
+});
+
+// 3. Walk the proof up to that root.
+verifyProof(leaf, proof.proof, root);
+```
+
+**Step 1 is the one that matters and the easy one to skip.** Verifying the `digest` the
+gateway handed you proves only that our arithmetic is self-consistent — worth nothing to
+someone deciding whether to trust us. Re-encoding the twelve fields is what makes the
+temperature *on screen* the thing that was signed and anchored. Change one displayed
+reading and the recomputed leaf stops matching; that is the whole demo.
+
+Do not `await` this before rendering the journey. Verification is progressive enhancement:
+draw the page, then upgrade the badge. A page that white-screens on an RPC hiccup loses the
+one moment that matters.
+
+The e2e suite asserts this contract end to end ("a client can recompute the leaf from the
+lot payload alone"), so if a field ever goes missing it fails there rather than in a demo.
+
 ## Badges
 
 Use `badgeFor()` from core rather than reimplementing the precedence.
