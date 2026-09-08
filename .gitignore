@@ -45,7 +45,14 @@ firmware/**/.vscode/
 *.sqlite
 *.sqlite3
 /data/
+apps/gateway/data/
 quarantine/
+
+# vercel
+.vercel
+
+# scripts/local-lan-demo.ps1's tracked-PID file for its -Stop cleanup
+scripts/.local-lan-demo.pids
 
 # logs
 *.log

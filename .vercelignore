@@ -1,0 +1,20 @@
+# Vercel only needs to build apps/web, which depends on packages/core (a workspace package
+# consumed as TS source, see apps/web/next.config.mjs) and nothing else in this monorepo.
+# Everything below is unrelated to that build and would otherwise bloat/derail the upload.
+
+node_modules
+.git
+
+# Not workspace dependencies of apps/web - excluded entirely.
+firmware
+hardware
+apps/android
+apps/gateway
+contracts
+
+# Build/runtime artifacts that shouldn't travel even for kept directories.
+.next
+.turbo
+*.tsbuildinfo
+deployments/localhost
+data
