@@ -27,6 +27,7 @@ import {
   decodeRecord,
   hexToBytes,
   incidentToEpcisEvent,
+  keccak256,
   NodeRole,
   recordToEpcisEvent,
   toEpcisDocument,
@@ -694,6 +695,27 @@ app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => 
 app.get("/lots", async () => ({
   lots: store.lots().map((lot) => store.lotState(lot as Hex, isAnchored)),
 }));
+
+/**
+ * Unsigned CAM photo upload — BENCH TESTING ONLY, not part of the trust protocol.
+ *
+ * The real witness path is POST /companion with a signed PHOTO attestation (payload =
+ * keccak of the frame, verified against the device key in pipeline.ts). That needs
+ * working on-device ECDSA, which currently panics the ESP32 (tinycrypt/micro-ecc
+ * symbol collision — see firmware/platformio.ini). Until that is fixed, this endpoint
+ * lets the minimal node-cam prove WiFi + camera + HTTP end to end: it POSTs the raw
+ * JPEG bytes, we hash them server-side and return the digest the companion WOULD carry.
+ * No signature check, no store write, nothing anchored — just the hash, for the demo.
+ */
+app.post("/cam/photo", async (request, reply) => {
+  const body = request.body as { bytes?: number[]; seq?: number; dev?: string } | undefined;
+  if (!body?.bytes || !Array.isArray(body.bytes) || body.bytes.length === 0) {
+    return reply.code(400).send({ error: "expected { bytes: number[], seq?: number, dev?: string }" });
+  }
+  const digest = keccak256(new Uint8Array(body.bytes));
+  app.log.info({ bytes: body.bytes.length, seq: body.seq ?? null, dev: body.dev ?? null, digest }, "cam photo received");
+  return { ok: true, bytes: body.bytes.length, digest };
+});
 
 /**
  * The recall query — ticket S1-11.

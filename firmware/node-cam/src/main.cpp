@@ -1,10 +1,12 @@
 #include <Arduino.h>
+#include <HTTPClient.h>
 #include <SD_MMC.h>
 #include <WiFi.h>
 #include <esp_camera.h>
 
 static const char* kSsid = "Debyte";
 static const char* kPass = "123456789";
+static const char* kGateway = "http://10.216.122.234:8080/cam/photo";
 static bool sd_ok = false;
 static unsigned cap_no = 0;
 
@@ -124,8 +126,27 @@ void loop() {
       saved = true;
     }
   }
-  Serial.printf("cap #%u: bytes=%u sd=%s ip=%s\n", cap_no, (unsigned)fb->len,
-                saved ? "ok" : "skip", WiFi.localIP().toString().c_str());
+  int http = -1;
+  if (fb->len > 0 && fb->len < 40000) {
+    HTTPClient h;
+    h.begin(kGateway);
+    h.addHeader("Content-Type", "application/json");
+    h.setTimeout(8000);
+    String body = String("{\"seq\":") + cap_no + ",\"bytes\":[";
+    for (size_t i = 0; i < fb->len; ++i) {
+      if (i) body += ',';
+      body += fb->buf[i];
+    }
+    body += "]}";
+    http = h.POST(body);
+    String resp = h.getString();
+    Serial.printf("post: http=%d resp=%s\n", http, resp.c_str());
+    h.end();
+  } else {
+    Serial.printf("post: skipped (%u bytes, over 40k cap)\n", (unsigned)fb->len);
+  }
+  Serial.printf("cap #%u: bytes=%u sd=%s http=%d ip=%s\n", cap_no, (unsigned)fb->len,
+                saved ? "ok" : "skip", http, WiFi.localIP().toString().c_str());
   esp_camera_fb_return(fb);
   ++cap_no;
 }
