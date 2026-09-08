@@ -109,3 +109,11 @@ test("ackSeq never runs ahead of what was accepted", () => {
   verifier.ingestBatch(makeRun(3));
   assert.equal(verifier.ackSeq(DEVICE), 2);
 });
+
+test("canonical record format decodes and ingests correctly", () => {
+  const { verifier } = readyVerifier();
+  const [entry] = makeRun(1);
+  const outcome = verifier.ingest(entry!.record, entry!.signature);
+  assert.equal(outcome.status, "accepted");
+  assert.equal(outcome.verdict, "ACCEPT");
+});

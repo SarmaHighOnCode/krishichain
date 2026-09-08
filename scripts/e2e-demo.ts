@@ -315,19 +315,24 @@ async function main(): Promise<void> {
   console.log("\n4. anchoring and proofs");
   await post("/anchor/flush", {});
 
-  // Poll for the anchor rather than sleeping a fixed interval. VERIFIED now means the
-  // anchor transaction CONFIRMED, so a hard-coded wait races the chain: on a slow tick the
-  // on-chain assertions below skip themselves and the run still reports all-green, which is
-  // the worst possible outcome for the one check nobody can afford to lose.
-  for (let i = 0; i < 40; i++) {
-    const anchors = await get("/ops/anchors").catch(() => null);
-    if (!anchors?.enabled) break; // no chain configured; the checks below skip honestly
-    if (anchors.anchors?.some((a: any) => a.status === "ANCHORED")) break;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-
   const lotData = await get(`/lot/${lotA}`);
   const sample = lotData.records?.[0];
+
+  // Poll for THIS record's own anchor rather than sleeping a fixed interval or checking
+  // "is anything anchored" — under concurrent load (another script hammering the gateway
+  // at the same time) a different batch can confirm first and the loop would break early
+  // while this specific proof is still PENDING, reporting a false SKIP. VERIFIED now means
+  // the anchor transaction CONFIRMED, so racing the chain at all risks the on-chain
+  // assertions below skipping themselves while the run still reports all-green — the worst
+  // outcome for the one check nobody can afford to lose.
+  if (sample) {
+    for (let i = 0; i < 40; i++) {
+      const proof = await get(`/proof/${sample.digest}`).catch(() => null);
+      if (!proof || proof.error) break; // no chain configured; checks below skip honestly
+      if (proof.anchors?.local?.status === "ANCHORED") break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
   check("the lot query returns the stored records", Boolean(sample), JSON.stringify(lotData).slice(0, 120));
 
   const proof = sample ? await get(`/proof/${sample.digest}`) : null;

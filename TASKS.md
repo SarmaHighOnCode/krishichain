@@ -76,6 +76,15 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 
 ## H1 · Firmware (Jaideep)
 
+> **H1 scope was extended on 2026-09-08** to a HEAD/LEAF split over ESP-NOW
+> ([ADR-0004](docs/adr/0004-head-leaf-esp-now.md)), adding receive-and-forward, heartbeat and
+> adaptive sampling. The executable breakdown now lives in
+> [docs/superpowers/plans/2026-09-08-h1-head-firmware.md](docs/superpowers/plans/2026-09-08-h1-head-firmware.md)
+> (13 tasks, TDD, host-testable through Task 7). New tickets: H1-14 frame codec, H1-15 ESP-NOW
+> transport, H1-16 ACK fan-out, H1-17 heartbeat, H1-18 adaptive sampling. Gateway dependency:
+> **S1-14 `POST /heartbeat`**.
+
+
 ### `H1-01` · secp256k1 signing benchmark [P0] [1h]
 - **Scope** Minimal sketch: micro-ecc `uECC_secp256k1`, sign a fixed 32-byte digest 100×, report
   mean ms and stack high-water mark. Also benchmark keccak256 on 90 bytes.
@@ -118,13 +127,17 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
   acknowledged records.
 - **Non-goals** No compression, no wear-levelling beyond the ring.
 
-### `H1-07` · Uplink + `ackSeq` flow control [P0] [3h]
+### `H1-07` · Uplink + `ackSeq` flow control [P0] [3h] — **landed**
 - **Accept** Batches ≤ 100 records; only advances the tail on `200` + `ackSeq`; exponential
   backoff 2 s → 60 s on 5xx; **stops uploading and blinks fault on `401`**.
-- **When this lands** the ESP32 build links again — delete `continue-on-error` from the
-  "ESP32 build (transit node)" step in `.github/workflows/ci.yml`. It was made
-  non-blocking only because `identity`/`chain`/`ringbuffer`/`uplink` are headers with no
-  `.cpp` yet, and a permanently red CI trains everyone to ignore it.
+- `identity.cpp`/`chain.cpp`/`ringbuffer.cpp`/`uplink.cpp` all exist now and `node-head`
+  compiles clean. The ESP32 build step in `.github/workflows/ci.yml` is still
+  `continue-on-error`, but for a different reason than it was: `kmackay/micro-ecc`'s
+  `uECC_*` symbols collide at link time with the ESP32 Arduino core's own bundled
+  tinycrypt (pulled in via BT/BLE-mesh regardless of whether the sketch uses Bluetooth).
+  Whoever owns H1-01's ecc library choice picks the fix (exclude the BT libs, rename
+  symbols, or a differently-vendored ecc lib) and removes `continue-on-error` once
+  `node-head` links.
 
 ### `H1-08` · Store-and-forward drain [P0] [2h]
 - **Accept** **The demo test:** pull WiFi for 10 minutes, restore it → the entire backlog uploads

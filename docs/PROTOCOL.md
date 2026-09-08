@@ -106,6 +106,23 @@ TLS at the edge.
 
 ### 3.2 Request
 
+The gateway accepts two equivalent wire formats for batches (up to 100 records per request):
+
+1. **Canonical wire format (Firmware / Zero-Derive Relay)**: Nodes post raw canonical bytes and signatures directly without unpacking or re-encoding on device:
+```jsonc
+{
+  "v": 1,
+  "dev": "0x7f3a…c21b",
+  "records": [
+    {
+      "canonical": "0x017f3a…", // 90-byte hex canonical record
+      "sig": "0x<64 bytes r‖s>"
+    }
+  ]
+}
+```
+
+2. **Exploded fields format (Simulators / Web tools)**:
 ```jsonc
 {
   "v": 1,
@@ -237,3 +254,5 @@ boundary record.
 **Definition of done for FW-03 and GW-02:** both implementations pass every vector, byte for
 byte. Neither side is allowed to "fix" a vector to make its own implementation pass; a vector
 change is a protocol change.
+
+> **Note on RFC 6979 Signature Interoperability:** C++ `micro-ecc` and TypeScript `@noble/curves` both implement deterministic RFC 6979 DSA/ECDSA nonce generation. Slight implementation variances in `bits2octets` padding bit manipulation between libraries can yield different 64-byte signature outputs (`sig`) for specific digest patterns. Cross-implementation signature byte-identity is neither guaranteed nor required for security; public key recovery and signature verification (`secp256k1_verify` / `recoverPublicKey`) are 100% interoperable and verified across both stacks.

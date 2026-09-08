@@ -67,18 +67,22 @@ jobs:
         working-directory: firmware
         run: pio test -e native
 
-      # TEMPORARILY NON-BLOCKING. This links against krishi::Identity, Chain, RingBuffer
-      # and Uplink, which are still headers with no .cpp — tickets H1-02, H1-05, H1-06 and
-      # H1-07. Until those land it cannot pass, and a permanently red CI is worse than a
-      # missing signal: everyone stops reading it, and a real regression in the TypeScript
-      # or contracts jobs slips through unnoticed.
+      # TEMPORARILY NON-BLOCKING. identity.cpp/chain.cpp/ringbuffer.cpp/uplink.cpp all now
+      # exist (H1-02/05/06/07 landed) and node-head compiles clean — real progress. What's
+      # left is a genuine link-time collision: kmackay/micro-ecc's `uECC_*` symbols clash
+      # with the ESP32 Arduino core's own bundled tinycrypt (pulled in via BT/BLE-mesh,
+      # linked whether or not the sketch uses Bluetooth). "multiple definition of
+      # uECC_set_rng" etc. This is a firmware dependency/linker issue (H1's), not a missing
+      # implementation — do not "fix" it by guessing; H1-01 chose micro-ecc for this exact
+      # secp256k1 need and should own whichever of {exclude BT libs, rename symbols via
+      # objcopy, a differently-vendored ecc lib} it picks.
       #
       # The step still RUNS and still reports, so the failure stays visible as a warning
       # rather than being deleted. The conformance test above is blocking and is the one
       # that guards the C++/TypeScript protocol seam.
       #
-      # >>> Remove `continue-on-error` the moment H1-07 lands. <<<
-      - name: ESP32 build (transit node)
+      # >>> Remove `continue-on-error` once node-head links clean. <<<
+      - name: ESP32 build (head node)
         working-directory: firmware
         continue-on-error: true
-        run: pio run -e node-transit
+        run: pio run -e node-head

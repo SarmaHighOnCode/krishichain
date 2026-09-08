@@ -24,6 +24,8 @@ import {
 import {
   COMPANION_VERSION,
   ConsensusEngine,
+  decodeRecord,
+  hexToBytes,
   incidentToEpcisEvent,
   NodeRole,
   recordToEpcisEvent,
@@ -68,7 +70,18 @@ const MQTT_URL = process.env.MQTT_URL ?? "mqtt://127.0.0.1:1883";
 
 const hex = (bytes: number) => z.string().regex(new RegExp(`^0x[0-9a-fA-F]{${bytes * 2}}$`));
 
-const recordSchema = z.object({
+const canonicalRecordSchema = z
+  .object({
+    canonical: hex(90),
+    sig: hex(64).optional(),
+    signature: hex(64).optional(),
+  })
+  .transform((val) => ({
+    canonical: val.canonical,
+    sig: (val.sig ?? val.signature)!,
+  }));
+
+const explodedRecordSchema = z.object({
   seq: z.number().int().min(0).max(0xffffffff),
   prev: hex(32),
   ts: z.union([z.number(), z.string()]),
@@ -97,8 +110,14 @@ const relaySchema = z.object({
   recvTs: z.number().int().min(0).optional(),
 });
 
+// PROTOCOL.md §3.2 accepts two equivalent shapes: the firmware's raw canonical bytes (no
+// on-device decode/re-encode round trip) and the exploded per-field shape the simulators and
+// sim-node.ts speak. Both resolve to the same SensorRecord before anything downstream —
+// companions, consensus, batching — has to care which one arrived.
+const recordSchema = z.union([canonicalRecordSchema, explodedRecordSchema]);
+
 const ingestSchema = z.object({
-  v: z.literal(1),
+  v: z.literal(1).optional().default(1),
   dev: hex(20),
   records: z.array(recordSchema).min(1).max(100),
   relay: relaySchema.optional(),
@@ -400,22 +419,35 @@ app.post("/ingest", async (request, reply) => {
   }
 
   for (const raw of records) {
-    const record: SensorRecord = {
-      v: 1,
-      dev: origin,
-      seq: raw.seq,
-      prev: raw.prev as Hex,
-      ts: BigInt(raw.ts),
-      tsq: raw.tsq,
-      lot: raw.lot as Hex,
-      t: raw.t,
-      h: raw.h,
-      lux: raw.lux,
-      flags: raw.flags,
-      bat: raw.bat,
-    };
+    let record: SensorRecord;
+    let sig: Hex;
 
-    const outcome = verifier.ingest(record, raw.sig as Hex);
+    // PROTOCOL.md §3.2: the firmware posts raw canonical bytes (no on-device decode/
+    // re-encode round trip); sim-node.ts and hand-built test payloads post exploded
+    // fields. `origin` (the batch's `dev`) is authoritative either way — a relayed
+    // canonical record's own `dev` byte is redundant with it by construction.
+    if ("canonical" in raw) {
+      record = decodeRecord(hexToBytes(raw.canonical));
+      sig = raw.sig as Hex;
+    } else {
+      record = {
+        v: 1,
+        dev: origin,
+        seq: raw.seq,
+        prev: raw.prev as Hex,
+        ts: BigInt(raw.ts),
+        tsq: raw.tsq,
+        lot: raw.lot as Hex,
+        t: raw.t,
+        h: raw.h,
+        lux: raw.lux,
+        flags: raw.flags,
+        bat: raw.bat,
+      };
+      sig = raw.sig as Hex;
+    }
+
+    const outcome = verifier.ingest(record, sig);
     outcomes.push(outcome);
 
     if (outcome.status === "rejected") {
@@ -432,7 +464,7 @@ app.post("/ingest", async (request, reply) => {
     const entry: StoredRecord = {
       record,
       digest: outcome.digest,
-      signature: raw.sig as Hex,
+      signature: sig,
       verdict: outcome.verdict,
       ...(outcome.detail !== undefined ? { detail: outcome.detail } : {}),
       ...(relayInfo ? { relay: relayInfo } : {}),
