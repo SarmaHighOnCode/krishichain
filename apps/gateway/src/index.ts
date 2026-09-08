@@ -18,6 +18,8 @@ import { MemoryDeviceDirectory, Verifier, type Outcome } from "./pipeline.js";
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 8080);
 
+const hex = (bytes: number) => z.string().regex(new RegExp(`^0x[0-9a-fA-F]{${bytes * 2}}$`));
+
 const canonicalRecordSchema = z
   .object({
     canonical: hex(90),
