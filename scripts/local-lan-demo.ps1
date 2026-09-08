@@ -2,19 +2,19 @@
 .SYNOPSIS
   One-shot local-chain-over-LAN test rig: chain + deploy + gateway + seed + install on a real
   phone, all pointed at this machine's LAN IP instead of the emulator's 10.0.2.2 alias or the
-  (deliberately dropped — see docs/SWARM-API.md) Amoy testnet. Local-only, self-hosted over
+  (deliberately dropped - see docs/SWARM-API.md) Amoy testnet. Local-only, self-hosted over
   your own hotspot/LAN, matching CLAUDE.md invariant 6: the demo must work with no internet.
 
 .PARAMETER LanIp
   This machine's IPv4 address on the network your phone is also on (e.g. your hotspot's
-  gateway IP, printed by `ipconfig`). Required for a real install — run with -ListIps first if
+  gateway IP, printed by `ipconfig`). Required for a real install - run with -ListIps first if
   you don't already know it.
 
 .PARAMETER ListIps
   Print candidate IPv4 addresses on this machine and exit. Doesn't start anything.
 
 .PARAMETER SkipInstall
-  Do everything except the final `gradlew installDebug` — chain, deploy, gateway and seed only.
+  Do everything except the final `gradlew installDebug` - chain, deploy, gateway and seed only.
   Useful if you just want the backend up, or are building separately / for the emulator instead.
 
 .PARAMETER Stop
@@ -43,7 +43,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
 
 $PidFile = Join-Path $PSScriptRoot ".local-lan-demo.pids"
-$DemoLot = "0x018f2c0000000000000000000000b027"  # TRUCK lot — scripts/seed.ts
+$DemoLot = "0x018f2c0000000000000000000000b027"  # TRUCK lot - scripts/seed.ts
 
 function Write-Step($msg) {
     Write-Host ""
@@ -74,7 +74,7 @@ if ($Stop) {
         }
         Remove-Item $PidFile
     } else {
-        Write-Host "No tracked PIDs ($PidFile not found) — nothing to stop."
+        Write-Host "No tracked PIDs ($PidFile not found) - nothing to stop."
     }
     exit 0
 }
@@ -134,7 +134,7 @@ $addresses = Get-Content "deployments/localhost/addresses.json" | ConvertFrom-Js
 $batchAnchor = $addresses.contracts.BatchAnchor
 Write-Host "  BatchAnchor: $batchAnchor"
 
-# Persist LanIp + BatchAnchor into apps/android/local.properties (gitignored — see
+# Persist LanIp + BatchAnchor into apps/android/local.properties (gitignored - see
 # apps/android/.gitignore) so a later plain `./gradlew installDebug`, with no -P flags, keeps
 # pointing at this LAN setup instead of falling back to the checked-in emulator default. Only
 # the four krishichain.* keys are touched; anything else already in the file (e.g. sdk.dir) is
@@ -155,10 +155,10 @@ if ($LanIp) {
         "krishichainBatchAnchorAddress=$batchAnchor"
     )
     Set-Content -Path $localPropsPath -Value $lines -Encoding ascii
-    Write-Host "  wrote LAN config — a plain 'gradlew installDebug' (no flags) now uses it too"
+    Write-Host "  wrote LAN config - a plain 'gradlew installDebug' (no flags) now uses it too"
 }
 
-# --- 4. gateway — already binds 0.0.0.0, no flag needed ---
+# --- 4. gateway - already binds 0.0.0.0, no flag needed ---
 Write-Step "gateway (0.0.0.0:8080)"
 if (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue) {
     Write-Host "  already listening on 8080, reusing it"
@@ -173,7 +173,7 @@ if (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyCont
 
 if ($startedPids.Count -gt 0) {
     $startedPids | Out-File -FilePath $PidFile -Encoding ascii
-    Write-Host "  tracked $($startedPids.Count) new process(es) in $PidFile — stop them later with -Stop"
+    Write-Host "  tracked $($startedPids.Count) new process(es) in $PidFile - stop them later with -Stop"
 }
 
 # --- 5. seed a demo lot ---
@@ -195,7 +195,7 @@ for ($i = 0; $i -lt 90; $i++) {
 if ($anchored) {
     Write-Host "  batch anchored ($($summary.batches) closed)"
 } else {
-    Write-Host "  no batch closed yet after 90s — the app will honestly show PENDING_ANCHOR until one does; that's not a bug" -ForegroundColor Yellow
+    Write-Host "  no batch closed yet after 90s - the app will honestly show PENDING_ANCHOR until one does; that's not a bug" -ForegroundColor Yellow
 }
 
 # --- 7. build + install on the phone ---
@@ -206,7 +206,7 @@ if (-not $SkipInstall) {
         Write-Host "  no device found via adb. Plug in the phone with USB debugging on (or pair wireless adb) and re-run." -ForegroundColor Red
         exit 1
     } elseif ($deviceLines.Count -gt 1) {
-        Write-Host "  more than one adb target connected — installDebug will land on whichever adb defaults to. Disconnect the emulator if you want this to definitely hit the phone." -ForegroundColor Yellow
+        Write-Host "  more than one adb target connected - installDebug will land on whichever adb defaults to. Disconnect the emulator if you want this to definitely hit the phone." -ForegroundColor Yellow
     }
 
     Write-Step "gradlew installDebug -> $LanIp"
@@ -232,5 +232,5 @@ if ($LanIp) {
 Write-Host "  BatchAnchor:  $batchAnchor"
 Write-Host "  demo lot:     $DemoLot"
 Write-Host "  On the phone: Verify tab -> that lot id (or type it manually, no QR needed)."
-Write-Host "  Firewall: Windows may prompt the first time the phone hits 8080/8545 from the LAN — allow it."
+Write-Host "  Firewall: Windows may prompt the first time the phone hits 8080/8545 from the LAN - allow it."
 Write-Host "  When you're done testing: powershell -File scripts/local-lan-demo.ps1 -Stop"
