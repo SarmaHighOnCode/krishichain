@@ -31,13 +31,25 @@ const RPC_URL = process.env.NEXT_PUBLIC_VERIFY_RPC_URL ?? "http://127.0.0.1:8545
 const CHAIN_ID = Number(process.env.NEXT_PUBLIC_VERIFY_CHAIN_ID ?? "31337");
 
 interface LotRecord {
+  v: number;
+  dev: `0x${string}`;
   seq: number;
+  prev: `0x${string}`;
   ts: string;
   tsq: number;
+  /** Per-record canonical `lot` field — always equal to the lot this page is showing, but it
+   *  is one of the twelve canonically-encoded fields, so S2-03's leaf recomputation needs it
+   *  read from the record itself rather than assumed from the URL. */
+  lot: `0x${string}`;
   t: number;
   h: number;
   lux: number;
   flags: number;
+  bat: number;
+  /** The record's own 64-byte r||s signature (apps/gateway/src/index.ts's `/lot/:lotId`
+   *  handler, previously withheld — see commit d9d4d3a). Needed so the browser can verify the
+   *  signature itself instead of trusting the gateway's `verdict`. */
+  sig: `0x${string}`;
   digest: `0x${string}`;
   verdict: ChainVerdict;
   anchored: boolean;
@@ -118,7 +130,13 @@ export default async function VerifyPage({ params }: { params: Promise<{ lotId: 
         </p>
       </div>
 
-      <VerifyPanel proof={proof} anchorAddress={anchorAddress} rpcUrl={RPC_URL} network={network} />
+      <VerifyPanel
+        proof={proof}
+        record={lot.records[0] ?? null}
+        anchorAddress={anchorAddress}
+        rpcUrl={RPC_URL}
+        network={network}
+      />
 
       <ColdChainChart records={lot.records} />
 

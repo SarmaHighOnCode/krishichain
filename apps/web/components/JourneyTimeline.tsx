@@ -12,10 +12,11 @@
 
 import { Flags, type ChainVerdict } from "@krishichain/core";
 
-import { isBreaching, type LotRecordLike } from "../lib/incidents";
+import { isBreaching, isSensorFault, type LotRecordLike } from "../lib/incidents";
 
 interface TimelineRecord extends LotRecordLike {
   ts: string;
+  tsq: number;
   h: number;
   flags: number;
   verdict: ChainVerdict;
@@ -33,6 +34,14 @@ function formatTimestamp(ts: string): string {
   const seconds = Number(ts);
   if (!Number.isFinite(seconds) || seconds <= 0) return "unsynced clock";
   return new Date(seconds * 1000).toLocaleString();
+}
+
+/** tsq === 2 (FRESH) is the expected case and says nothing — only the degraded states earn a
+ *  suffix, per PROTOCOL.md §1.1's time-quality field. */
+function tsqSuffix(tsq: number): string {
+  if (tsq === 0) return " · clock never synced";
+  if (tsq === 1) return " · clock stale";
+  return "";
 }
 
 function flagLabels(flags: number): string[] {
@@ -154,10 +163,17 @@ function TimelineEntry({ record }: { record: TimelineRecord }) {
         <strong style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>seq {record.seq}</strong>
         <span className="muted" style={{ fontSize: "0.8rem" }}>
           {formatTimestamp(record.ts)}
+          {tsqSuffix(record.tsq)}
         </span>
       </div>
       <p style={{ margin: "var(--space-xxs) 0 0" }}>
-        {(record.t / 10).toFixed(1)}&deg;C · {(record.h / 10).toFixed(1)}% RH
+        {isSensorFault(record) ? (
+          "sensor fault — no reading"
+        ) : (
+          <>
+            {(record.t / 10).toFixed(1)}&deg;C · {(record.h / 10).toFixed(1)}% RH
+          </>
+        )}
         {record.anchored ? "" : " · not yet anchored"}
       </p>
       {(anomalous || flags.length > 0) && (
