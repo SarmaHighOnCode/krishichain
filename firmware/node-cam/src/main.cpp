@@ -36,6 +36,8 @@
 #include "pins.h"
 #include "record.h"
 #include "ringbuffer.h"
+#include "store/esp_flash_store.h"
+#include "store/flash_store.h"
 #include "swarm.h"
 #include "uplink.h"
 
@@ -43,6 +45,7 @@ namespace {
 
 krishi::Identity identity;
 krishi::Chain chain;
+krishi::EspFlashStore flash_store;
 krishi::RingBuffer buffer;
 krishi::Uplink uplink;
 
@@ -246,11 +249,12 @@ void setup() {
   Serial.printf("device address: %s\n", address_hex);
   if (identity.wasCommissionedThisBoot()) {
     Serial.println("*** NEWLY COMMISSIONED — register this address on-chain:");
-    Serial.printf("    npm run device:register -- --address %s --class CAM_V1\n", address_hex);
+    Serial.printf("    npm run device:register -- --address %s --class WITNESS\n", address_hex);
   }
 
   chain.begin();
-  buffer.begin();
+  flash_store.sectorSize(); // init partition check
+  buffer.begin(flash_store);
 
 #ifdef ARDUINO_ARCH_ESP32
   pinMode(krishi::pins::kRedLed, OUTPUT);

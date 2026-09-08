@@ -20,7 +20,7 @@ Owner: **H2** (build, power, enclosure, calibration) · **H1** (firmware, pin co
 
 ## 1. Two nodes, two jobs
 
-| | **FARM NODE** (`node-farm`) | **TRANSIT NODE** (`node-transit`) |
+| | **FARM NODE** (`node-head`) | **TRANSIT NODE** (`node-leaf`) |
 |---|---|---|
 | Where | Crate at the farm gate, pre-cool shed | Sealed inside the cold box with the lot |
 | Job | Commission the lot, capture harvest conditions | Prove the cold chain held, detect tampering |
@@ -245,16 +245,18 @@ Time it during dry runs and know the number before you present.
 ## 8. Flashing
 
 ```bash
-cd firmware/node-transit
-pio run -t upload
+cd firmware
+pio run -e node-leaf -t upload    # or node-head / node-cam
 pio device monitor -b 115200
 ```
+
+Build environments: `node-head`, `node-leaf`, `node-cam`, `cam-bringup`, `native`.
 
 First boot generates the keypair and prints the device address once. **Capture it** — it is
 needed for `DeviceRegistry.registerDevice`:
 
 ```bash
-npm run device:register -- --address 0x7f3a…c21b --class TRANSIT_V1 --seal KC-SEAL-0042
+npm run device:register -- --address 0x7f3a…c21b --class LEAF
 ```
 
 Erase and re-commission (new identity, use sparingly — it invalidates prior registration):

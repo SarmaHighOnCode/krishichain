@@ -26,9 +26,9 @@ against a root read from a chain node — a process it never trusts our gateway 
 2. Press **Verify independently** → the browser fetches the Merkle root straight from the
    chain node (not from our gateway) and recomputes the proof locally. Green badge = the
    data existed at anchor time, unaltered.
-3. Open the cold box lid → the transit node logs a tamper + temperature excursion → the lot is
+3. Open the cold box lid → the LEAF node logs a tamper + temperature excursion → the lot is
    flagged **COLD-CHAIN BREACH** on-chain within seconds, and the consumer page reflects it.
-4. Pull the WiFi. The node keeps recording into its hash-chained flash buffer. Plug it back in →
+4. Pull the WiFi. The HEAD node keeps recording into its hash-chained flash buffer. Plug it back in →
    the entire gapless run uploads and verifies. Nothing was lost, nothing could be rewritten.
 
 ## Architecture at a glance
@@ -36,8 +36,9 @@ against a root read from a chain node — a process it never trusts our gateway 
 ```mermaid
 flowchart LR
   subgraph FIELD["Field / Cold chain"]
-    N1["ESP32 · FARM NODE<br/>harvest env + lot commissioning"]
-    N2["ESP32 · TRANSIT NODE<br/>cold chain + tamper"]
+    N1["ESP32 · HEAD NODE<br/>WiFi + ESP-NOW relay"]
+    N2["ESP32-S2 · LEAF NODE<br/>ESP-NOW sensors"]
+    N3["ESP32-CAM · WITNESS<br/>ESP-NOW visual logs"]
   end
 
   subgraph EDGE["Edge"]
@@ -60,8 +61,9 @@ flowchart LR
     W2["Ops dashboard"]
   end
 
-  N1 -->|"signed, hash-chained records"| GW
-  N2 -->|"signed, hash-chained records"| GW
+  N2 -.->|"ESP-NOW records"| N1
+  N3 -.->|"ESP-NOW records"| N1
+  N1 -->|"signed, hash-chained batches"| GW
   GW --> DB
   GW -->|"1 tx per batch of 256+"| C4
   GW --> C3
@@ -76,12 +78,13 @@ flowchart LR
 | Path | What lives here | Owner |
 |---|---|---|
 | `docs/` | PRD, architecture, protocol spec, team plan, demo script | All |
-| `firmware/node-farm/` | ESP32 harvest/commissioning node (PlatformIO) | H1 |
-| `firmware/node-transit/` | ESP32 cold-chain/tamper node (PlatformIO) | H1 |
+| `firmware/node-head/` | ESP32 WiFi relay + ESP-NOW coordinator | H1 |
+| `firmware/node-leaf/` | ESP32-S2 deep-sleep sensor node (ESP-NOW) | H1 |
+| `firmware/node-cam/` | ESP32-CAM witness node (ESP-NOW) | H1 |
 | `firmware/lib/krishi/` | Shared C++ lib: identity, signing, hash chain, ring buffer | H1 |
 | `contracts/` | Solidity (Hardhat + viem) | S1 |
 | `apps/gateway/` | Fastify ingest, verification, Merkle batcher, anchor service | S1 |
-| `apps/web/` | Next.js consumer verify + ops dashboard | S2 |
+| `apps/web/` | Next.js landing page, consumer verify + ops dashboard | S2 |
 | `packages/core/` | Canonical encoding, Merkle, signature verify, EPCIS types | S1 |
 | `hardware/` | BOM, wiring diagrams, enclosure, calibration logs | H2 |
 
@@ -92,8 +95,31 @@ npm install
 npm run dev
 ```
 
-See [docs/RUNBOOK.md](docs/RUNBOOK.md) for the full setup, including firmware flashing and
-the offline demo chain.
+`npm run dev` starts the local chain, the gateway and the web app together. The landing page is
+at http://localhost:3000, the ops dashboard at `/ops`, and a consumer view at `/verify/<lotId>`.
+
+To get something to look at without any hardware:
+
+```bash
+npm run seed   # three smallholdings into one truck lot, one of them breaches
+```
+
+### Firmware development (ESP32 nodes)
+
+PlatformIO needs Python ≥ 3.9:
+
+```bash
+pip install -U platformio
+cd firmware
+pio run -e node-head              # build
+pio run -e node-head -t upload    # build + flash
+pio test -e native                # host-side tests, no board required
+```
+
+Environments: `node-head`, `node-leaf`, `node-cam`, `cam-bringup`, `native`.
+
+See [docs/RUNBOOK.md](docs/RUNBOOK.md) for commissioning, flashing and the offline demo chain,
+including a firmware troubleshooting table.
 
 ## Documents
 
@@ -112,7 +138,7 @@ the offline demo chain.
 
 | Role | Track | Owns |
 |---|---|---|
-| **H1** (Jaideep) | Hardware | Firmware, device identity, crypto, offline buffer, uplink |
+| **H1**  | Hardware | Firmware, device identity, crypto, offline buffer, uplink |
 | **H2** | Hardware | Sensors, power, enclosure, tamper rig, calibration, demo props |
 | **S1** | Software | Contracts, gateway, Merkle/anchor pipeline, `packages/core` |
 | **S2** | Software | Consumer verify UI, ops dashboard, QR/labels, pitch assets |

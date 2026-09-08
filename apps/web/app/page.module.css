@@ -1,0 +1,532 @@
+/*
+ * Landing page — self-contained styles.
+ *
+ * Deliberately scoped rather than themed. globals.css is S2's light design language (S2-01) and
+ * /verify, /ops and every shared component depend on its tokens, including contrast ratios tuned
+ * by hand in S2-10. This is the one dark surface in the app, so its palette lives here as local
+ * custom properties instead of a global flip that would drag those pages with it.
+ *
+ * No CDN fonts, no remote images, no icon package: the demo has to render with the network
+ * unplugged (CLAUDE.md invariant 6). Type reuses the three families layout.tsx already
+ * self-hosts, and the only graphic is inline SVG.
+ */
+
+.page {
+  --bg: #121212;
+  --surface: #191919;
+  --raised: #1f1f1f;
+  --line-soft: #232323;
+  --text: #e8e8e6;
+  --dim: #9ca3af;
+  --faint: #6b7280;
+  --amber: #f59e0b;
+  --amber-ink: #181200;
+  --green: #34d399;
+  --red: #ef4444;
+
+  /* Override the 40rem reading column globals.css puts on every <main>. */
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.shell {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 clamp(1.25rem, 4vw, 3rem);
+}
+
+/* --- section scaffolding: numbered marker + hairline, per the brutalist reference --- */
+
+.section {
+  padding: clamp(3.5rem, 8vw, 6.5rem) 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.section:first-child {
+  border-top: 0;
+}
+
+.num {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--faint);
+  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0 0 0.75rem;
+}
+
+.sectionLede {
+  max-width: 48ch;
+  color: var(--dim);
+  margin: 0 0 clamp(2rem, 5vw, 3rem);
+}
+
+/* --- 01 hero --- */
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
+}
+
+/* The wordmark must never break mid-word, and it sits in a grid column roughly half the
+   viewport — so sizing it in vw overflows the column and wraps "KRISHICHAI / N". Size it
+   against the column instead: 11 glyphs at this tracking measure ~5.9em, so 16cqw keeps the
+   word on one line at every container width. The vw clamp above it is the fallback for
+   browsers without container queries. */
+.heroCopy {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.2rem, 10vw, 4rem);
+  font-size: min(16cqw, 5rem);
+  line-height: 0.92;
+  letter-spacing: -0.045em;
+  margin: 0;
+  color: #f4f4f2;
+}
+
+.tagline {
+  font-size: 0.9rem;
+  color: var(--faint);
+  margin: 1rem 0 clamp(2rem, 5vw, 2.75rem);
+  letter-spacing: 0.01em;
+}
+
+.claim {
+  font-size: clamp(1.05rem, 2.4vw, 1.45rem);
+  line-height: 1.45;
+  margin: 0 0 1.5rem;
+  max-width: 26ch;
+}
+
+.claimAccent {
+  color: var(--amber);
+}
+
+.meta {
+  font-size: 0.82rem;
+  color: var(--faint);
+  margin: 0 0 clamp(2rem, 5vw, 2.75rem);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.25rem, 3vw, 2rem);
+  flex-wrap: wrap;
+}
+
+.cta {
+  display: inline-block;
+  background: var(--amber);
+  color: var(--amber-ink);
+  text-decoration: none;
+  padding: 0.85rem 1.35rem;
+  border: 0;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.cta:hover {
+  background: #ffb224;
+}
+
+.cta:active {
+  transform: translateY(1px);
+}
+
+.cta:focus-visible {
+  outline: 2px solid #ffd27a;
+  outline-offset: 3px;
+}
+
+.ctaLabel {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.ctaSub {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.72;
+  margin-top: 0.15rem;
+}
+
+.link {
+  color: var(--dim);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: #2c2c2c;
+  font-size: 0.9rem;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.link:hover {
+  color: var(--text);
+  text-decoration-color: var(--faint);
+}
+
+/* --- the light specimen card: the reference's contrast block, carrying real field names --- */
+
+.specimen {
+  background: #f4f4f2;
+  color: #17171c;
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 45%);
+}
+
+.specimenHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #dcdcd8;
+}
+
+.specimenLabel {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #6b6b76;
+}
+
+.specimenSeq {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: #6b6b76;
+}
+
+.rows {
+  margin: 0;
+  padding: 0.85rem 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 1rem;
+  font-size: 0.78rem;
+}
+
+.k {
+  color: #6b6b76;
+  letter-spacing: 0.04em;
+}
+
+.v {
+  margin: 0;
+  color: #17171c;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  height: 52px;
+  margin: 1rem 0 0.35rem;
+}
+
+.sparkNote {
+  font-size: 0.68rem;
+  color: #6b6b76;
+  margin: 0 0 1rem;
+}
+
+.specimenFoot {
+  border-top: 1px solid #dcdcd8;
+  padding-top: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.chipOk {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #00463b;
+  background: #d7f2e3;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+}
+
+.specimenFootNote {
+  font-size: 0.7rem;
+  color: #6b6b76;
+  margin: 0;
+}
+
+/* --- 02 pipeline --- */
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.step {
+  background: var(--surface);
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.stepNum {
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  color: var(--amber);
+  display: block;
+  margin-bottom: 0.9rem;
+}
+
+.stepName {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.6rem;
+  color: var(--text);
+}
+
+.stepBody {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+
+.mono {
+  color: var(--text);
+}
+
+/* --- 03 the four states --- */
+
+.states {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.state {
+  background: var(--surface);
+  padding: clamp(1.1rem, 2.5vw, 1.6rem);
+}
+
+.stateTop {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.stateName {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stateBody {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+/* --- 04 spec sheet --- */
+
+.spec {
+  border: 1px solid var(--line-soft);
+}
+
+.specRow {
+  display: grid;
+  grid-template-columns: minmax(11rem, 22%) 1fr;
+  gap: 1rem;
+  padding: 0.85rem clamp(1rem, 2.5vw, 1.5rem);
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 0.85rem;
+}
+
+.specRow:last-child {
+  border-bottom: 0;
+}
+
+.specKey {
+  color: var(--faint);
+  letter-spacing: 0.06em;
+}
+
+.specVal {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.specNote {
+  color: var(--faint);
+}
+
+/* --- 05 run it --- */
+
+.runGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1.5rem, 4vw, 2.5rem);
+  align-items: start;
+}
+
+.cmdBlock {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  overflow-x: auto;
+}
+
+/* globals.css styles the bare `code` element with a light --color-stone chip background for the
+   light pages. These are <code> elements on a dark surface, so that has to be undone here. */
+.cmdLine {
+  display: block;
+  white-space: pre;
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.9;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.prompt {
+  color: var(--amber);
+  user-select: none;
+}
+
+.cmdNote {
+  color: var(--faint);
+}
+
+.runAside p {
+  color: var(--dim);
+  font-size: 0.88rem;
+  margin: 0 0 1rem;
+}
+
+.lotLinks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.lotLink {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  padding: 0.75rem 0.9rem;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.78rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  overflow-wrap: anywhere;
+}
+
+.lotLink:hover {
+  border-color: var(--faint);
+  background: var(--raised);
+}
+
+.lotLinkLabel {
+  display: block;
+  color: var(--faint);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+
+/* --- footer --- */
+
+.footer {
+  border-top: 1px solid var(--line-soft);
+  padding: clamp(2rem, 5vw, 3rem) 0 clamp(3rem, 6vw, 4rem);
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+
+.footer p {
+  margin: 0;
+  max-width: 58ch;
+  line-height: 1.7;
+}
+
+/* --- responsive --- */
+
+@media (max-width: 900px) {
+  .heroGrid,
+  .runGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .states {
+    grid-template-columns: 1fr;
+  }
+
+  /* The command lines are `white-space: pre` and cannot wrap, so this trailing comment is the
+     one thing that makes the block scroll on a phone. The paragraph beside it already says
+     what `seed` does. */
+  .cmdNote {
+    display: none;
+  }
+
+  .specRow {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .rows {
+    font-size: 0.74rem;
+  }
+}

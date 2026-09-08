@@ -77,7 +77,7 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 ## H1 · Firmware (Jaideep)
 
 > **H1 scope was extended on 2026-09-08** to a HEAD/LEAF split over ESP-NOW
-> ([ADR-0004](docs/adr/0004-head-leaf-esp-now.md)), adding receive-and-forward, heartbeat and
+> ([ADR-0004](docs/adr/0004-heterogeneous-swarm.md)), adding receive-and-forward, heartbeat and
 > adaptive sampling. The executable breakdown now lives in
 > [docs/superpowers/plans/2026-09-08-h1-head-firmware.md](docs/superpowers/plans/2026-09-08-h1-head-firmware.md)
 > (13 tasks, TDD, host-testable through Task 7). New tickets: H1-14 frame codec, H1-15 ESP-NOW

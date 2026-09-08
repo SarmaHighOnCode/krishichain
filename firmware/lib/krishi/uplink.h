@@ -37,6 +37,7 @@ struct UplinkResponse {
   uint32_t ackSeq = 0;
   uint64_t serverTs = 0;  // used to re-derive the clock offset (FW-08)
   uint32_t accepted = 0;
+  uint32_t intervalSeconds = 0;
 };
 
 /** Pure: splits a mixed-device peek into contiguous per-device runs. Host-tested. */
