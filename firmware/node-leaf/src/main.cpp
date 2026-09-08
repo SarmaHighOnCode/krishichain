@@ -196,7 +196,7 @@ void setup() {
   }
   // WiFi-direct fallback uses the same channel so ESP-NOW keeps working.
   // TODO(H2-11 bench): fill real SSID via serial `WIFI <ssid> <pass>`.
-  WiFi.begin("krishichain", "krishichain");
+  WiFi.begin("Debyte", "123456789");
 #endif
 
   uplink.begin("http://192.168.1.50:8080");

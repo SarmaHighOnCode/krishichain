@@ -135,6 +135,12 @@ static void runUplinkCycle() {
 
     UplinkResponse resp = gUplink.sendBatch(canonicals + start * kCanonicalLength, sigs + start * kSignatureLength, len, dev);
     if (resp.result == UplinkResult::kOk) {
+      if (resp.intervalSeconds > 0) {
+        gSamplingCfg.maxMs = resp.intervalSeconds * 1000;
+        if (gSamplingState.intervalMs > gSamplingCfg.maxMs) {
+          gSamplingState.intervalMs = gSamplingCfg.maxMs;
+        }
+      }
       gRingBuffer.releaseThrough(dev, resp.ackSeq);
       gLedState = LedState::kOk;
       if (memcmp(dev, gIdentity.address(), kAddressLength) != 0) {

@@ -91,8 +91,14 @@ UplinkResponse Uplink::sendBatch(const uint8_t* canonicalBlock, const uint8_t* s
       resp.result = UplinkResult::kOk;
       backoffMs_ = 2000;
       String payload = http.getString();
-      // parse ackSeq, serverTs, accepted simple JSON fields if present
-      sscanf(payload.c_str(), "{\"ackSeq\":%u,\"serverTs\":%llu", &resp.ackSeq, &resp.serverTs);
+      // parse ackSeq, serverTs, intervalSeconds simple JSON fields if present
+      const char* pStr = payload.c_str();
+      const char* pAck = strstr(pStr, "\"ackSeq\":");
+      if (pAck) sscanf(pAck, "\"ackSeq\":%u", &resp.ackSeq);
+      const char* pTs = strstr(pStr, "\"serverTs\":");
+      if (pTs) sscanf(pTs, "\"serverTs\":%llu", &resp.serverTs);
+      const char* pInt = strstr(pStr, "\"intervalSeconds\":");
+      if (pInt) sscanf(pInt, "\"intervalSeconds\":%u", &resp.intervalSeconds);
     } else if (httpCode == 400) {
       resp.result = UplinkResult::kMalformed;
     } else if (httpCode == 401) {
