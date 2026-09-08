@@ -2,6 +2,7 @@ package com.krishichain.app.data.remote
 
 import com.krishichain.app.data.model.InclusionProofDto
 import com.krishichain.app.data.model.LotResponse
+import com.krishichain.app.data.model.OpsSummaryDto
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -19,4 +20,7 @@ interface GatewayApi {
 
     @GET("proof/{digest}")
     suspend fun getProof(@Path("digest") digest: String): Response<InclusionProofDto>
+
+    @GET("ops/summary")
+    suspend fun getOpsSummary(): Response<OpsSummaryDto>
 }

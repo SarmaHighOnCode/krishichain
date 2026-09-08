@@ -2,7 +2,7 @@ package com.krishichain.app.ui.theme
 
 import androidx.compose.ui.unit.dp
 
-/** DESIGN.md's spacing scale. */
+/** Original spacing scale */
 object Spacing {
     val xxs = 2.dp
     val xs = 6.dp
