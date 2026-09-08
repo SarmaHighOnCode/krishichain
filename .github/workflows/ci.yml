@@ -67,22 +67,41 @@ jobs:
         working-directory: firmware
         run: pio test -e native
 
-      # TEMPORARILY NON-BLOCKING. identity.cpp/chain.cpp/ringbuffer.cpp/uplink.cpp all now
-      # exist (H1-02/05/06/07 landed) and node-head compiles clean — real progress. What's
-      # left is a genuine link-time collision: kmackay/micro-ecc's `uECC_*` symbols clash
-      # with the ESP32 Arduino core's own bundled tinycrypt (pulled in via BT/BLE-mesh,
-      # linked whether or not the sketch uses Bluetooth). "multiple definition of
-      # uECC_set_rng" etc. This is a firmware dependency/linker issue (H1's), not a missing
-      # implementation — do not "fix" it by guessing; H1-01 chose micro-ecc for this exact
-      # secp256k1 need and should own whichever of {exclude BT libs, rename symbols via
-      # objcopy, a differently-vendored ecc lib} it picks.
+      # One step per board. This is deliberately not collapsed into a single command:
+      # native tests only compile the pure lib/krishi logic, never node-head/node-leaf/
+      # node-cam/src themselves, so a device-only bug (wrong macro name, a type declared
+      # in a .cpp with no header, a stale env name after a rename) is invisible to
+      # `pio test -e native` and compiles clean right up until someone tries to flash a
+      # board. That happened twice in one afternoon reconciling the H1/H2 PRs — this is
+      # what would have caught both before they reached main.
       #
-      # The step still RUNS and still reports, so the failure stays visible as a warning
-      # rather than being deleted. The conformance test above is blocking and is the one
-      # that guards the C++/TypeScript protocol seam.
+      # node-head is TEMPORARILY NON-BLOCKING, and only node-head: it compiles clean
+      # (identity.cpp/chain.cpp/ringbuffer.cpp/uplink.cpp all exist — H1-02/05/06/07
+      # landed) and fails at LINK with a genuine, diagnosed collision — kmackay/micro-ecc's
+      # `uECC_*` symbols clash with the ESP32 Arduino core's own bundled tinycrypt, pulled
+      # in via BT/BLE-mesh whether or not the sketch touches Bluetooth ("multiple
+      # definition of uECC_set_rng" etc). This is H1-01's ecc library choice to resolve
+      # (exclude the BT libs, rename symbols, or a differently-vendored ecc lib) — do not
+      # paper over it with `-Wl,--allow-multiple-definition`; that flag picks whichever
+      # definition the linker happens to see first, which could silently substitute the
+      # SDK's own P-256 implementation for this project's required secp256k1 in a signing
+      # path, and a wrong-curve signature that still "links" is far worse than a build that
+      # honestly fails to link at all.
       #
-      # >>> Remove `continue-on-error` once node-head links clean. <<<
-      - name: ESP32 build (head node)
+      # >>> Remove `continue-on-error` here once node-head links clean. <<<
+      - name: ESP32 build (node-head)
         working-directory: firmware
         continue-on-error: true
         run: pio run -e node-head
+
+      - name: ESP32 build (node-leaf)
+        working-directory: firmware
+        run: pio run -e node-leaf
+
+      - name: ESP32 build (node-cam)
+        working-directory: firmware
+        run: pio run -e node-cam
+
+      - name: ESP32 build (cam-bringup)
+        working-directory: firmware
+        run: pio run -e cam-bringup
