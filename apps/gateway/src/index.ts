@@ -676,6 +676,12 @@ app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => 
       flags: entry.record.flags,
       bat: entry.record.bat,
       digest: entry.digest,
+      // The record's own 64-byte r||s signature. Exposed so the browser can independently
+      // recover the signing address and compare it to `dev` (packages/core's
+      // `recoverCandidates`), never just re-hash the digest we already trust ourselves — the
+      // same "don't grade your own homework" reasoning as reading the Merkle root from the
+      // chain instead of from this response (S2-03's comment above).
+      sig: entry.signature,
       verdict: entry.verdict,
       anchored: isAnchored(entry.digest),
       ...(entry.relay ? { relay: entry.relay } : {}),
@@ -795,10 +801,19 @@ app.get<{ Params: { dev: string } }>("/device/:dev", async (request, reply) => {
     recordCount: records.length,
     companionsWitnessed: store.companions.filter((c) => c.companion.dev.toLowerCase() === dev).length,
     incidents: store.incidents.filter((i) => i.dev?.toLowerCase() === dev),
+    // t/h/lux/bat/tsq/flags added alongside the existing seq/ts/t/digest/verdict/anchored so the
+    // ops dashboard's per-device telemetry view (temperature, humidity, battery, time-quality)
+    // has a real source instead of a second copy of `GET /lot/:lotId`'s per-lot records — this
+    // is the one telemetry read that isn't scoped to a single lot.
     records: records.slice(-100).map((entry) => ({
       seq: entry.record.seq,
       ts: entry.record.ts.toString(),
+      tsq: entry.record.tsq,
       t: entry.record.t,
+      h: entry.record.h,
+      lux: entry.record.lux,
+      flags: entry.record.flags,
+      bat: entry.record.bat,
       digest: entry.digest,
       verdict: entry.verdict,
       anchored: isAnchored(entry.digest),
