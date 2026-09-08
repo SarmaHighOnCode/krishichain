@@ -707,11 +707,11 @@ app.get("/lots", async () => ({
  * JPEG bytes, we hash them server-side and return the digest the companion WOULD carry.
  * No signature check, no store write, nothing anchored — just the hash, for the demo.
  *
- * Lid verdict (bench-tuned on H2-04: sealed box reads mean <15, open room light >80,
- * threshold 40): we decode the JPEG here, take the mean luma, and report shut vs OPEN.
+ * Lid verdict (finger-covered lens reads ~40, open room light >80,
+ * threshold 25): we decode the JPEG here, take the mean luma, and report shut vs OPEN.
  * Done server-side so the ESP stays dumb — no image math on the constrained board.
  */
-const LID_MEAN_THRESHOLD = Number(process.env.CAM_LID_THRESHOLD ?? 40);
+const LID_MEAN_THRESHOLD = Number(process.env.CAM_LID_THRESHOLD ?? 25);
 app.post("/cam/photo", async (request, reply) => {
   const body = request.body as { bytes?: number[]; seq?: number; dev?: string } | undefined;
   if (!body?.bytes || !Array.isArray(body.bytes) || body.bytes.length === 0) {
