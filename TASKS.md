@@ -76,6 +76,15 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 
 ## H1 · Firmware (Jaideep)
 
+> **H1 scope was extended on 2026-09-08** to a HEAD/LEAF split over ESP-NOW
+> ([ADR-0004](docs/adr/0004-head-leaf-esp-now.md)), adding receive-and-forward, heartbeat and
+> adaptive sampling. The executable breakdown now lives in
+> [docs/superpowers/plans/2026-09-08-h1-head-firmware.md](docs/superpowers/plans/2026-09-08-h1-head-firmware.md)
+> (13 tasks, TDD, host-testable through Task 7). New tickets: H1-14 frame codec, H1-15 ESP-NOW
+> transport, H1-16 ACK fan-out, H1-17 heartbeat, H1-18 adaptive sampling. Gateway dependency:
+> **S1-14 `POST /heartbeat`**.
+
+
 ### `H1-01` · secp256k1 signing benchmark [P0] [1h]
 - **Scope** Minimal sketch: micro-ecc `uECC_secp256k1`, sign a fixed 32-byte digest 100×, report
   mean ms and stack high-water mark. Also benchmark keccak256 on 90 bytes.
