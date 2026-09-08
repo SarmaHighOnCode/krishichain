@@ -39,7 +39,7 @@ krishi::Identity identity;
 krishi::Chain chain;
 krishi::RingBuffer buffer;
 krishi::Uplink uplink;
-krishi::LeafLink link;
+krishi::LeafLink leaf_link;
 
 DHT dht(krishi::pins::kDhtData, DHT22);
 
@@ -197,8 +197,8 @@ void loop() {
     heartbeat_pending = false;
     krishi::swarm::Heartbeat hb;
     if (krishi::swarm::parseHeartbeat(heartbeat_buf, heartbeat_len, hb)) {
-      link.markBeatSeen();
-      link.onHeartbeat(millis(), hb);
+      leaf_link.markBeatSeen();
+      leaf_link.onHeartbeat(millis(), hb);
       uint8_t self[krishi::kAddressLength];
       memcpy(self, identity.address(), sizeof(self));
       if (memcmp(hb.ack_dev, self, sizeof(self)) == 0) {
@@ -208,14 +208,14 @@ void loop() {
     }
   }
 #endif
-  link.poll(millis());
+  leaf_link.poll(millis());
 
   if (ack_for_us) {
     ack_for_us = false;
     buffer.releaseThrough(last_ack_seq);
   }
 
-  uint32_t interval = link.sampleIntervalMs();
+  uint32_t interval = leaf_link.sampleIntervalMs();
   if (millis() - last_sample_ms < interval) {
     delay(50);
     return;
@@ -229,7 +229,7 @@ void loop() {
     return;
   }
 
-  if (link.mode() == krishi::LeafLink::kEspNow) {
+  if (leaf_link.mode() == krishi::LeafLink::kEspNow) {
     drainViaEspNow(canonical, signature);
     digitalWrite(krishi::pins::kStatusLed, HIGH);
   } else {

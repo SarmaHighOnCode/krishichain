@@ -14,15 +14,18 @@
  * SD own nearly everything), so `lux` = mean luma 0-255, a brightness proxy.
  * Threshold tuned on the bench (H2-04); inside a sealed box reads <15.
  *
- * SD card (optional, non-fatal): each capture saved as /krishi/c<seq>.raw
- * with a .meta sidecar. Offline photos survive on the card; hashes still
- * flow through the ring buffer + gateway like any record.
+ * SD card (required on this node): every capture is saved as /krishi/c<seq>.raw
+ * (the exact pixel bytes that were hashed) plus a /krishi/c<seq>.meta sidecar
+ * carrying dev/seq/digest/photoHash/verdict. The chain + companion still flow to
+ * the gateway like any record — the SD is the backup evidence archive, so a lost
+ * batch or a dropped companion never loses the photo itself.
  */
 
 #include <Arduino.h>
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <HTTPClient.h>
+#include <SD_MMC.h>
 #include <WiFi.h>
 #include <esp_camera.h>
 #endif
@@ -94,24 +97,48 @@ uint8_t meanLuma(const uint8_t* pixels, size_t len) {
 }
 
 void saveToSd(uint32_t seq, const uint8_t* pixels, size_t len, uint8_t mean,
-              const uint8_t photo_hash[krishi::kDigestLength]) {
-  if (!sd_present) return;
-  char path[48];
-  snprintf(path, sizeof(path), "/krishi/c%u.raw", seq);
-  // TODO(H2-12 bench): SD_MMC file write + .meta sidecar. Stubbed until bench day;
-  // the hash + companion already flow without the card.
-  (void)path;
-  (void)pixels;
-  (void)len;
-  (void)mean;
-  (void)photo_hash;
+              bool lid_open, const uint8_t photo_hash[krishi::kDigestLength],
+              const uint8_t digest[krishi::kDigestLength]) {
+  if (!sd_present || pixels == nullptr || len == 0) {
+    if (sd_present) Serial.println("WARN: no frame to archive — hash only");
+    return;
+  }
+  char raw_path[48];
+  char meta_path[48];
+  snprintf(raw_path, sizeof(raw_path), "/krishi/c%u.raw", seq);
+  snprintf(meta_path, sizeof(meta_path), "/krishi/c%u.meta", seq);
+
+  File raw = SD_MMC.open(raw_path, FILE_WRITE);
+  if (!raw) {
+    Serial.printf("WARN: sd write failed: %s\n", raw_path);
+    return;
+  }
+  raw.write(pixels, len);
+  raw.close();
+
+  char photo_hex[krishi::kDigestLength * 2 + 3];
+  char digest_hex[krishi::kDigestLength * 2 + 3];
+  char dev_hex[krishi::kAddressLength * 2 + 3];
+  krishi::toHex(photo_hash, krishi::kDigestLength, photo_hex, sizeof(photo_hex));
+  krishi::toHex(digest, krishi::kDigestLength, digest_hex, sizeof(digest_hex));
+  krishi::toHex(identity.address(), krishi::kAddressLength, dev_hex, sizeof(dev_hex));
+
+  File meta = SD_MMC.open(meta_path, FILE_WRITE);
+  if (!meta) {
+    Serial.printf("WARN: sd write failed: %s\n", meta_path);
+    return;
+  }
+  meta.printf("dev=%s\nseq=%u\ndigest=%s\nphoto=%s\nmean=%u\nlid=%s\nbytes=%u\n", dev_hex, seq,
+              digest_hex, photo_hex, mean, lid_open ? "OPEN" : "shut",
+              static_cast<unsigned>(len));
+  meta.close();
 }
 
 void postJson(const char* url, const char* body) {
   HTTPClient http;
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
-  http.POST((const uint8_t*)body, strlen(body));
+  http.POST(body);
   http.end();
 }
 #endif
@@ -183,7 +210,7 @@ void captureCycle() {
   (void)csig;
 
   if (fb != nullptr) {
-    saveToSd(record.seq, fb->buf, fb->len, mean, photo_hash);
+    saveToSd(record.seq, fb->buf, fb->len, mean, lid_open, photo_hash, digest);
     esp_camera_fb_return(fb);
   }
 
@@ -235,8 +262,20 @@ void setup() {
   }
   Serial.println("camera: grayscale QVGA, PSRAM frame buffer");
 
-  // SD_MMC 1-bit on the AI Thinker pins. Optional — evidence archive only.
-  // TODO(H2-12 bench): SD_MMC.begin + mkdir /krishi; sets sd_present.
+  // SD_MMC 1-bit on the AI Thinker pins — the evidence archive. Mount failure
+  // is fatal here (unlike sensor nodes): a WITNESS that cannot archive photos
+  // still hashes + chains, but it has lost its backup copy, so say so loudly.
+  SD_MMC.setPins(/*clk=*/14, /*cmd=*/15, /*d0=*/2);
+  if (!SD_MMC.begin("/sdcard", true)) {
+    Serial.println("FATAL: SD mount failed — check card + holder wiring");
+    return;
+  }
+  sd_present = true;
+  if (!SD_MMC.exists("/krishi")) SD_MMC.mkdir("/krishi");
+  Serial.printf("sd: %llu MB total, %llu MB free\n",
+                SD_MMC.totalBytes() / (1024ULL * 1024ULL),
+                (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / (1024ULL * 1024ULL));
+
   WiFi.mode(WIFI_STA);
   WiFi.begin("krishichain", "krishichain");  // TODO: serial `WIFI <ssid> <pass>`
 #endif

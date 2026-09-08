@@ -149,7 +149,7 @@ record) via POST `/ingest/companion`. No raw photo on-chain, ever.
 | Signal | GPIO | Notes |
 |---|---|---|
 | Camera bus | 0,5,18–19,21–23,25–27,32,34–36,39 | Fixed by the AI Thinker layout, do not move |
-| SD card | 2,4,12–13 | 1-bit mode; optional archive (`/krishi/c<seq>.raw` + `.meta`) |
+| SD card | 2,4,12–13 | 1-bit mode; every capture archived as `/krishi/c<seq>.raw` + `.meta` — the backup if a batch/companion is lost |
 | Red lamp | 33 | Onboard red LED, active low — the lid-open beacon |
 | Flash LED | 4 | Keep OFF during captures (blinds the verdict) |
 

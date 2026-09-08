@@ -83,42 +83,42 @@ void test_heartbeat_round_trips_and_carries_interval() {
 }
 
 void test_leaf_starts_on_esp_now_and_adopts_broadcast_interval() {
-  krishi::LeafLink link;
-  TEST_ASSERT_EQUAL(krishi::LeafLink::kEspNow, link.mode());
-  TEST_ASSERT_EQUAL_UINT32(30000, link.sampleIntervalMs());
+  krishi::LeafLink leaf_link;
+  TEST_ASSERT_EQUAL(krishi::LeafLink::kEspNow, leaf_link.mode());
+  TEST_ASSERT_EQUAL_UINT32(30000, leaf_link.sampleIntervalMs());
 
   const krishi::swarm::Heartbeat hb = makeBeat(10000);
-  link.markBeatSeen();
-  link.onHeartbeat(1000, hb);
-  TEST_ASSERT_EQUAL_UINT32(10000, link.sampleIntervalMs());
-  TEST_ASSERT_TRUE(link.incident() == false);
+  leaf_link.markBeatSeen();
+  leaf_link.onHeartbeat(1000, hb);
+  TEST_ASSERT_EQUAL_UINT32(10000, leaf_link.sampleIntervalMs());
+  TEST_ASSERT_TRUE(leaf_link.incident() == false);
 }
 
 void test_leaf_fails_over_after_three_missed_beats_then_rejoins() {
-  krishi::LeafLink link;
-  link.markBeatSeen();
-  link.onHeartbeat(0, makeBeat());
+  krishi::LeafLink leaf_link;
+  leaf_link.markBeatSeen();
+  leaf_link.onHeartbeat(0, makeBeat());
 
-  link.poll(5000 * 3);  // exactly at the deadline: still ESP-NOW
-  TEST_ASSERT_EQUAL(krishi::LeafLink::kEspNow, link.mode());
-  link.poll(5000 * 3 + 1);  // one ms past: HEAD declared lost
-  TEST_ASSERT_EQUAL(krishi::LeafLink::kWifiDirect, link.mode());
-  TEST_ASSERT_EQUAL_UINT32(1, link.flaps());
+  leaf_link.poll(5000 * 3);  // exactly at the deadline: still ESP-NOW
+  TEST_ASSERT_EQUAL(krishi::LeafLink::kEspNow, leaf_link.mode());
+  leaf_link.poll(5000 * 3 + 1);  // one ms past: HEAD declared lost
+  TEST_ASSERT_EQUAL(krishi::LeafLink::kWifiDirect, leaf_link.mode());
+  TEST_ASSERT_EQUAL_UINT32(1, leaf_link.flaps());
 
   // One beat is not enough to rejoin (flap guard); two consecutive are.
-  link.onHeartbeat(20000, makeBeat());
-  TEST_ASSERT_EQUAL(krishi::LeafLink::kWifiDirect, link.mode());
-  link.onHeartbeat(25000, makeBeat());
-  TEST_ASSERT_EQUAL(krishi::LeafLink::kEspNow, link.mode());
-  TEST_ASSERT_EQUAL_UINT32(2, link.flaps());
+  leaf_link.onHeartbeat(20000, makeBeat());
+  TEST_ASSERT_EQUAL(krishi::LeafLink::kWifiDirect, leaf_link.mode());
+  leaf_link.onHeartbeat(25000, makeBeat());
+  TEST_ASSERT_EQUAL(krishi::LeafLink::kEspNow, leaf_link.mode());
+  TEST_ASSERT_EQUAL_UINT32(2, leaf_link.flaps());
 }
 
 void test_leaf_flags_incident_from_heartbeat() {
-  krishi::LeafLink link;
-  link.markBeatSeen();
-  link.onHeartbeat(0, makeBeat(10000, 0x01));
-  TEST_ASSERT_TRUE(link.incident());
-  TEST_ASSERT_EQUAL_UINT32(10000, link.sampleIntervalMs());
+  krishi::LeafLink leaf_link;
+  leaf_link.markBeatSeen();
+  leaf_link.onHeartbeat(0, makeBeat(10000, 0x01));
+  TEST_ASSERT_TRUE(leaf_link.incident());
+  TEST_ASSERT_EQUAL_UINT32(10000, leaf_link.sampleIntervalMs());
 }
 
 void test_companion_packs_96_bytes_with_lid_bit_and_zero_reserved() {
@@ -153,6 +153,9 @@ void test_companion_packs_96_bytes_with_lid_bit_and_zero_reserved() {
   TEST_ASSERT_EQUAL_UINT8(0, shut[krishi::companion::offsets::kLidFlags]);
   TEST_ASSERT_EQUAL_UINT8_ARRAY(out, shut, krishi::companion::kCanonicalLength - 6);
 }
+
+void setUp() {}
+void tearDown() {}
 
 int main(int, char**) {
   UNITY_BEGIN();
