@@ -50,10 +50,23 @@ const icons = {
       <path d="M15 3 8.5 9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   ),
+  /** S2-12 — a little cube, for the map + 3D-lite crate twins. */
+  twins: (
+    <svg viewBox="0 0 18 18" width="16" height="16" fill="none" aria-hidden="true">
+      <path
+        d="M9 2.2 15 5.6v6.8L9 15.8 3 12.4V5.6L9 2.2Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M3 5.6 9 9m0 0 6-3.4M9 9v6.8" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  ),
 };
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/ops", label: "Overview", icon: icons.grid },
+  { href: "/ops/twins", label: "Twins", icon: icons.twins },
   { href: "/ops/labels", label: "Labels", icon: icons.tag },
 ];
 
