@@ -76,6 +76,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.material:material-icons-extended")
 
     // Single verify screen today; a real NavHost route so a Phase 2 sensor-node screen slots in
     // as a second destination without restructuring anything (see MainActivity / KrishiChainNavHost).
@@ -91,6 +92,17 @@ dependencies {
     // keccak256 for Merkle proof re-verification. Bouncy Castle's KeccakDigest, NOT
     // MessageDigest.getInstance("SHA3-256") — see domain/Keccak.kt for why.
     implementation("org.bouncycastle:bcprov-jdk18on:1.80")
+
+    // QR scanning (Scan tab): CameraX for the preview + frame stream, ML Kit for on-device
+    // barcode decoding. Both stay fully local — no network call, no Google Play Services
+    // bottom-sheet UI — so the viewfinder can be themed like the rest of the app and the demo's
+    // no-internet invariant (CLAUDE.md #6) holds.
+    val cameraxVersion = "1.4.1"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

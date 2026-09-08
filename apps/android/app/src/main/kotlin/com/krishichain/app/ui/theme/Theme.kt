@@ -6,13 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 
-/**
- * The four verification-state colors and a few other DESIGN.md tokens (hairline, muted text,
- * card border) don't map onto any of Material3's named ColorScheme slots, so — same as
- * globals.css defining `--status-*` custom properties alongside the DESIGN.md palette — they're
- * exposed through their own CompositionLocal rather than forced into `error`/`tertiary`/etc.
- * roles that would carry the wrong semantics.
- */
 data class KrishiExtendedColors(
     val ink: androidx.compose.ui.graphics.Color = ColorInk,
     val bodyMuted: androidx.compose.ui.graphics.Color = ColorBodyMuted,
@@ -30,6 +23,27 @@ data class KrishiExtendedColors(
     val statusFlaggedWash: androidx.compose.ui.graphics.Color = StatusFlaggedWash,
     val statusUnverifiable: androidx.compose.ui.graphics.Color = StatusUnverifiable,
     val statusUnverifiableWash: androidx.compose.ui.graphics.Color = StatusUnverifiableWash,
+    val surfaceElevated: androidx.compose.ui.graphics.Color = SurfaceElevated,
+    val chartFillOk: androidx.compose.ui.graphics.Color = ChartFillOk,
+    val chartFillBreach: androidx.compose.ui.graphics.Color = ChartFillBreach,
+    val chartLineOk: androidx.compose.ui.graphics.Color = ChartLineOk,
+    val chartLineBreach: androidx.compose.ui.graphics.Color = ChartLineBreach,
+    val glowVerified: androidx.compose.ui.graphics.Color = GlowVerified,
+    val glowFlagged: androidx.compose.ui.graphics.Color = GlowFlagged,
+    val glowUnverifiable: androidx.compose.ui.graphics.Color = GlowUnverifiable,
+    val rowTintAlternate: androidx.compose.ui.graphics.Color = RowTintAlternate,
+    val deepGreen: androidx.compose.ui.graphics.Color = ColorDeepGreen,
+    val onPrimary: androidx.compose.ui.graphics.Color = ColorOnPrimary,
+    
+    // Pastel Hero gradients
+    val heroGradientStart: androidx.compose.ui.graphics.Color = HeroGradientStart,
+    val heroGradientMid1: androidx.compose.ui.graphics.Color = HeroGradientMid1,
+    val heroGradientMid2: androidx.compose.ui.graphics.Color = HeroGradientMid2,
+    val heroGradientEnd: androidx.compose.ui.graphics.Color = HeroGradientEnd,
+    
+    // Card accents
+    val cardAccentPurple: androidx.compose.ui.graphics.Color = CardAccentPurple,
+    val cardAccentNavy: androidx.compose.ui.graphics.Color = CardAccentNavy,
 )
 
 val LocalKrishiColors = staticCompositionLocalOf { KrishiExtendedColors() }
@@ -39,9 +53,9 @@ private val KrishiColorScheme = lightColorScheme(
     onPrimary = ColorOnPrimary,
     secondary = ColorActionBlue,
     onSecondary = ColorOnPrimary,
-    background = ColorCanvas,
+    background = ColorStone,     // Screen background is light grey
     onBackground = ColorInk,
-    surface = ColorCanvas,
+    surface = ColorCanvas,       // Cards are white
     onSurface = ColorInk,
     surfaceVariant = ColorStone,
     onSurfaceVariant = ColorBodyMuted,
@@ -51,11 +65,6 @@ private val KrishiColorScheme = lightColorScheme(
     onError = ColorOnPrimary,
 )
 
-/**
- * The design reference (globals.css) has no dark-mode variant — this is a deliberate,
- * light-only theme rather than an oversight. A real dark palette (and a call to
- * `isSystemInDarkTheme()` to pick it) is future work, not something to invent unprompted here.
- */
 @Composable
 fun KrishiChainTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalKrishiColors provides KrishiExtendedColors()) {

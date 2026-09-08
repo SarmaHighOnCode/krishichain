@@ -1,78 +1,168 @@
 package com.krishichain.app.ui
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material.icons.rounded.Sensors
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.krishichain.app.ui.dashboard.DashboardScreen
+import com.krishichain.app.ui.dashboard.DashboardViewModel
+import com.krishichain.app.ui.placeholder.SettingsPlaceholder
+import com.krishichain.app.ui.scan.ScanScreen
 import com.krishichain.app.ui.theme.KrishiTheme
 import com.krishichain.app.ui.verify.VerifyScreen
+import com.krishichain.app.ui.verify.VerifyViewModel
 import com.krishichain.app.ui.virtualnode.VirtualNodeScreen
 
 /**
- * Phase 1 was a single route. Phase 2 (the phone virtual sensor node, ticket S2-13) adds a
- * second destination and the minimal top-level switcher this doc comment used to say would slot
- * in here without restructuring anything — a plain `TabRow`, not a drawer or bottom nav, since
- * this is a two-screen demo app rather than a real product surface.
+ * Main navigation host with bottom navigation bar (Stripe-style).
+ *
+ * Five tabs: Verify (the main screen), Scan (QR -> lot lookup), Dashboard (ops summary), Sensor
+ * node (S2-13's phone virtual-node — signs and streams its own readings), Settings (placeholder).
+ * The bottom nav uses Stripe's indigo primary for selected items.
+ *
+ * [VerifyViewModel] is hoisted here (not created inside `VerifyScreen`) so a QR scan can push a
+ * lot ID into the same instance the Verify tab reads from, then switch tabs — no
+ * SavedStateHandle plumbing between destinations.
  */
-private object Routes {
-    const val VERIFY = "verify"
-    const val SENSOR_NODE = "sensor-node"
-}
 
-private data class TopLevelTab(val route: String, val label: String)
+private data class NavItem(
+    val route: String,
+    val label: String,
+    val icon: ImageVector,
+)
 
-private val TABS = listOf(
-    TopLevelTab(Routes.VERIFY, "Verify"),
-    TopLevelTab(Routes.SENSOR_NODE, "Sensor node"),
+private val NAV_ITEMS = listOf(
+    NavItem("verify", "Verify", Icons.Rounded.VerifiedUser),
+    NavItem("scan", "Scan", Icons.Rounded.QrCodeScanner),
+    NavItem("dashboard", "Dashboard", Icons.Rounded.Dashboard),
+    NavItem("sensor-node", "Sensor node", Icons.Rounded.Sensors),
+    NavItem("settings", "Settings", Icons.Rounded.Settings),
 )
 
 @Composable
 fun KrishiChainNavHost() {
     val navController = rememberNavController()
     val colors = KrishiTheme.colors
+    val verifyViewModel: VerifyViewModel = viewModel()
+    val dashboardViewModel: DashboardViewModel = viewModel()
 
-    // statusBarsPadding(): this Column sits outside any Scaffold (which would normally handle the
-    // inset via its own TopAppBar), and `enableEdgeToEdge()` (MainActivity) draws app content
-    // behind the system status bar by default — without this, the TabRow renders under the
-    // status bar icons AND the status bar swallows touches meant for the tabs.
-    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-        val backStackEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = backStackEntry?.destination?.hierarchy?.firstOrNull()?.route
+    fun goToVerifyTab() {
+        navController.navigate("verify") {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
-        TabRow(
-            selectedTabIndex = TABS.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0),
-            contentColor = colors.ink,
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            @OptIn(ExperimentalMaterial3Api::class)
+            TopAppBar(
+                title = {
+                    val currentRoute = currentDestination?.route
+                    val title = NAV_ITEMS.find { it.route == currentRoute }?.label ?: "KrishiChain"
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = colors.ink,
+                )
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = colors.ink,
+                tonalElevation = 0.dp,
+            ) {
+
+                NAV_ITEMS.forEach { item ->
+                    val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+                    NavigationBarItem(
+                        icon = {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = item.label,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        selected = selected,
+                        onClick = {
+                            navController.navigate(item.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = colors.bodyMuted,
+                            unselectedTextColor = colors.bodyMuted,
+                            indicatorColor = colors.actionBlue.copy(alpha = 0.3f),
+                        ),
+                    )
+                }
+            }
+        },
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = "verify",
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
         ) {
-            TABS.forEach { tab ->
-                Tab(
-                    selected = tab.route == currentRoute,
-                    onClick = {
-                        navController.navigate(tab.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+            composable("verify") { VerifyScreen(verifyViewModel) }
+            composable("scan") {
+                ScanScreen(
+                    onLotScanned = { lotId ->
+                        verifyViewModel.loadLot(lotId)
+                        goToVerifyTab()
                     },
-                    text = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
+                    onManualEntry = { goToVerifyTab() },
                 )
             }
-        }
-
-        NavHost(navController = navController, startDestination = Routes.VERIFY) {
-            composable(Routes.VERIFY) { VerifyScreen() }
-            composable(Routes.SENSOR_NODE) { VirtualNodeScreen() }
+            composable("dashboard") { DashboardScreen(dashboardViewModel) }
+            composable("sensor-node") { VirtualNodeScreen() }
+            composable("settings") { SettingsPlaceholder() }
         }
     }
 }

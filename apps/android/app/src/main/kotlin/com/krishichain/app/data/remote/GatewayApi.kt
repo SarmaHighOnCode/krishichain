@@ -8,6 +8,7 @@ import com.krishichain.app.data.model.InclusionProofDto
 import com.krishichain.app.data.model.IngestRequest
 import com.krishichain.app.data.model.IngestResponse
 import com.krishichain.app.data.model.LotResponse
+import com.krishichain.app.data.model.OpsSummaryDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -40,4 +41,7 @@ interface GatewayApi {
     /** Witness attestations (S1-14) — this app sends GPS (`kind = 3`) only. */
     @POST("companion")
     suspend fun postCompanion(@Body body: CompanionIngestRequest): Response<CompanionIngestResponse>
+
+    @GET("ops/summary")
+    suspend fun getOpsSummary(): Response<OpsSummaryDto>
 }
