@@ -110,8 +110,15 @@ bool captureAndStore(uint8_t canonical[krishi::kCanonicalLength],
   uint8_t digest[krishi::kDigestLength];
   krishi::Identity::digest(canonical, krishi::kCanonicalLength, digest);
   if (!identity.sign(digest, signature)) return false;
-  if (!buffer.append(record, signature)) return false;
+  if (!buffer.append(record, signature)) {
+    Serial.println("WARN: ring buffer append failed");
+    return false;
+  }
   chain.advance(digest);
+  Serial.printf("leaf seq=%u t=%d.%dC h=%u.%u%% lux=%u flags=0x%02x mode=%s buf=%u\n", record.seq,
+                record.t / 10, abs(record.t % 10), record.h / 10, record.h % 10, record.lux,
+                record.flags, leaf_link.mode() == krishi::LeafLink::kEspNow ? "espnow" : "wifi",
+                buffer.stats().count);
   return true;
 }
 
@@ -127,9 +134,18 @@ void drainViaEspNow(const uint8_t* canonical, const uint8_t* signature) {
 }
 
 void drainViaWifi() {
-  // TODO(H1-07/08): peek up to 100, send, releaseThrough(ackSeq). Same contract
-  // as the transit node; the Uplink impl lands with H1.
-  (void)uplink;
+  if (!uplink.isOnline() || buffer.isEmpty()) return;
+  constexpr size_t kDrainMax = 8;
+  uint8_t canonicals[kDrainMax * krishi::kCanonicalLength];
+  uint8_t sigs[kDrainMax * krishi::kSignatureLength];
+  size_t count = buffer.peekCanonical(canonicals, sigs, kDrainMax);
+  if (count == 0) return;
+  krishi::Record probe;
+  if (!krishi::decodeRecord(canonicals, krishi::kCanonicalLength, probe)) return;
+  krishi::UplinkResponse resp = uplink.sendBatch(canonicals, sigs, count, probe.dev);
+  if (resp.result == krishi::UplinkResult::kOk) {
+    buffer.releaseThrough(probe.dev, resp.ackSeq);
+  }
 }
 
 }  // namespace
@@ -159,7 +175,7 @@ void setup() {
   }
 
   chain.begin();
-  flash_store.sectorSize(); // init partition check
+  flash_store.sectorSize();  // init partition check
   buffer.begin(flash_store);
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -223,8 +239,7 @@ void loop() {
   if (ack_for_us) {
     ack_for_us = false;
     // releaseThrough is per-device (a HEAD relays for many devices and must say which
-    // one); a LEAF only ever releases its own records, and its own address is already
-    // fetched above for the heartbeat-ack comparison.
+    // one); a LEAF only ever releases its own records.
     buffer.releaseThrough(identity.address(), last_ack_seq);
   }
 
