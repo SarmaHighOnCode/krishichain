@@ -35,7 +35,9 @@ class RingBuffer {
   bool begin(FlashStore& flash);
 
   bool append(const Record& record, const uint8_t signature[kSignatureLength]);
+  bool appendCanonical(const uint8_t canonical[kCanonicalLength], const uint8_t signature[kSignatureLength]);
   size_t peek(Record* records, uint8_t* signatures, size_t max) const;
+  size_t peekCanonical(uint8_t* canonicalBlocks, uint8_t* signatures, size_t max) const;
   bool releaseThrough(const uint8_t dev[kAddressLength], uint32_t ackSeq);
   bool isEmpty() const;
   BufferStats stats() const;

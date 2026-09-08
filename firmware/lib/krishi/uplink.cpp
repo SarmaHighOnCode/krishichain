@@ -65,7 +65,7 @@ UplinkResponse Uplink::sendBatch(const uint8_t* canonicalBlock, const uint8_t* s
   char devHex[kAddressLength * 2 + 3];
   toHex(dev, kAddressLength, devHex, sizeof(devHex));
 
-  int pos = snprintf(jsonBuf, sizeof(jsonBuf), "{\"dev\":\"%s\",\"records\":[", devHex);
+  int pos = snprintf(jsonBuf, sizeof(jsonBuf), "{\"v\":1,\"dev\":\"%s\",\"records\":[", devHex);
 
   for (size_t i = 0; i < count; ++i) {
     char canHex[kCanonicalLength * 2 + 3];
@@ -74,7 +74,7 @@ UplinkResponse Uplink::sendBatch(const uint8_t* canonicalBlock, const uint8_t* s
     toHex(signatureBlock + i * kSignatureLength, kSignatureLength, sigHex, sizeof(sigHex));
 
     pos += snprintf(jsonBuf + pos, sizeof(jsonBuf) - pos,
-                    "%s{\"canonical\":\"%s\",\"signature\":\"%s\"}",
+                    "%s{\"canonical\":\"%s\",\"sig\":\"%s\"}",
                     i == 0 ? "" : ",", canHex, sigHex);
     if (pos >= static_cast<int>(sizeof(jsonBuf)) - 10) break;
   }

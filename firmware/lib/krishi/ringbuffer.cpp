@@ -172,6 +172,12 @@ bool RingBuffer::append(const Record& record, const uint8_t signature[kSignature
   return true;
 }
 
+bool RingBuffer::appendCanonical(const uint8_t canonical[kCanonicalLength], const uint8_t signature[kSignatureLength]) {
+  Record r;
+  if (!decodeRecord(canonical, kCanonicalLength, r)) return false;
+  return append(r, signature);
+}
+
 size_t RingBuffer::peek(Record* records, uint8_t* signatures, size_t max) const {
   if (flash_ == nullptr || stats_.count == 0 || max == 0) return 0;
 
@@ -191,6 +197,32 @@ size_t RingBuffer::peek(Record* records, uint8_t* signatures, size_t max) const 
         memcpy(signatures + readCount * kSignatureLength, slotBuf + 94, kSignatureLength);
         readCount++;
       }
+    }
+    curr = (curr + 1) % totalSlots_;
+    checked++;
+  }
+
+  return readCount;
+}
+
+size_t RingBuffer::peekCanonical(uint8_t* canonicalBlocks, uint8_t* signatures, size_t max) const {
+  if (flash_ == nullptr || stats_.count == 0 || max == 0) return 0;
+
+  size_t readCount = 0;
+  size_t curr = tail_;
+  size_t checked = 0;
+
+  while (readCount < max && checked < totalSlots_) {
+    uint8_t slotBuf[kSlotSize];
+    if (!flash_->read(curr * kSlotSize, slotBuf, kSlotSize)) break;
+
+    uint16_t magic = (static_cast<uint16_t>(slotBuf[0]) << 8) | slotBuf[1];
+    uint8_t state = slotBuf[162];
+
+    if (magic == kSlotMagic && state == 0xFF) {
+      memcpy(canonicalBlocks + readCount * kCanonicalLength, slotBuf + 4, kCanonicalLength);
+      memcpy(signatures + readCount * kSignatureLength, slotBuf + 94, kSignatureLength);
+      readCount++;
     }
     curr = (curr + 1) % totalSlots_;
     checked++;

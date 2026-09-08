@@ -97,10 +97,15 @@ static Record readSensors() {
 static void runUplinkCycle() {
   if (gRingBuffer.isEmpty()) return;
 
-  Record records[kMaxUplinkBatch];
+  uint8_t canonicals[kMaxUplinkBatch * kCanonicalLength];
   uint8_t sigs[kMaxUplinkBatch * kSignatureLength];
-  size_t count = gRingBuffer.peek(records, sigs, kMaxUplinkBatch);
+  size_t count = gRingBuffer.peekCanonical(canonicals, sigs, kMaxUplinkBatch);
   if (count == 0) return;
+
+  Record records[kMaxUplinkBatch];
+  for (size_t i = 0; i < count; ++i) {
+    decodeRecord(canonicals + i * kCanonicalLength, kCanonicalLength, records[i]);
+  }
 
   size_t runStarts[8], runLengths[8];
   size_t runs = groupByDevice(records, count, runStarts, runLengths, 8);
@@ -110,12 +115,7 @@ static void runUplinkCycle() {
     size_t len = runLengths[r];
     const uint8_t* dev = records[start].dev;
 
-    uint8_t canonicalBlock[kMaxUplinkBatch * kCanonicalLength];
-    for (size_t i = 0; i < len; ++i) {
-      encodeRecord(records[start + i], canonicalBlock + i * kCanonicalLength, kCanonicalLength);
-    }
-
-    UplinkResponse resp = gUplink.sendBatch(canonicalBlock, sigs + start * kSignatureLength, len, dev);
+    UplinkResponse resp = gUplink.sendBatch(canonicals + start * kCanonicalLength, sigs + start * kSignatureLength, len, dev);
     if (resp.result == UplinkResult::kOk) {
       gRingBuffer.releaseThrough(dev, resp.ackSeq);
       gLedState = LedState::kOk;
@@ -208,10 +208,7 @@ void loop() {
     if (type == kFrameRecord) {
       RecordFrame rf;
       if (decodeRecordFrame(rxFrame.data, rxFrame.len, rf)) {
-        Record rec;
-        if (decodeRecord(rf.canonical, kCanonicalLength, rec)) {
-          gRingBuffer.append(rec, rf.sig);
-        }
+        gRingBuffer.appendCanonical(rf.canonical, rf.sig);
       }
     } else if (type == kFrameHeartbeat) {
       HeartbeatFrame hf;
