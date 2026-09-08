@@ -121,6 +121,30 @@ void test_leaf_flags_incident_from_heartbeat() {
   TEST_ASSERT_EQUAL_UINT32(10000, leaf_link.sampleIntervalMs());
 }
 
+// A heartbeat is unauthenticated (any device on the channel can forge one). Without a
+// clamp, a single spoofed or buggy broadcast could blind a LEAF indefinitely (interval
+// too high) or drain its battery and flood the radio (interval too low).
+void test_leaf_clamps_an_out_of_range_broadcast_interval_low() {
+  krishi::LeafLink leaf_link;
+  leaf_link.markBeatSeen();
+  leaf_link.onHeartbeat(0, makeBeat(1));  // 1ms: a flood, not a real policy
+  TEST_ASSERT_EQUAL_UINT32(krishi::swarm::kMinIntervalMs, leaf_link.sampleIntervalMs());
+}
+
+void test_leaf_clamps_an_out_of_range_broadcast_interval_high() {
+  krishi::LeafLink leaf_link;
+  leaf_link.markBeatSeen();
+  leaf_link.onHeartbeat(0, makeBeat(0xFFFFFFFF));  // ~49 days: indistinguishable from dead
+  TEST_ASSERT_EQUAL_UINT32(krishi::swarm::kMaxIntervalMs, leaf_link.sampleIntervalMs());
+}
+
+void test_leaf_accepts_a_broadcast_interval_within_bounds_unmodified() {
+  krishi::LeafLink leaf_link;
+  leaf_link.markBeatSeen();
+  leaf_link.onHeartbeat(0, makeBeat(60000));
+  TEST_ASSERT_EQUAL_UINT32(60000, leaf_link.sampleIntervalMs());
+}
+
 void test_companion_packs_96_bytes_with_lid_bit_and_zero_reserved() {
   krishi::companion::CamAttest a;
   for (size_t i = 0; i < kAddressLength; ++i) a.dev[i] = static_cast<uint8_t>(i + 9);
@@ -165,6 +189,9 @@ int main(int, char**) {
   RUN_TEST(test_leaf_starts_on_esp_now_and_adopts_broadcast_interval);
   RUN_TEST(test_leaf_fails_over_after_three_missed_beats_then_rejoins);
   RUN_TEST(test_leaf_flags_incident_from_heartbeat);
+  RUN_TEST(test_leaf_clamps_an_out_of_range_broadcast_interval_low);
+  RUN_TEST(test_leaf_clamps_an_out_of_range_broadcast_interval_high);
+  RUN_TEST(test_leaf_accepts_a_broadcast_interval_within_bounds_unmodified);
   RUN_TEST(test_companion_packs_96_bytes_with_lid_bit_and_zero_reserved);
   return UNITY_END();
 }

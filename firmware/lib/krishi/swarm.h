@@ -31,6 +31,16 @@ constexpr size_t kMaxEspNowPayload = 250;
 constexpr uint32_t kHeartbeatPeriodMs = 5000;  // HEAD broadcasts this often (H1-14)
 constexpr uint32_t kHeadMissAllow = 3;         // LEAF declares HEAD lost after 3 misses
 
+// A HEAD heartbeat is UNAUTHENTICATED (docs/PROTOCOL-LINK.md section 7.3): it is not
+// signed, not chained, and any device on the channel can forge one. Adopting an
+// interval straight from a heartbeat with no bound lets a single spoofed or buggy
+// broadcast blind a LEAF indefinitely (interval too high) or drain its battery and
+// flood the radio (interval too low). Clamp both directions. Bounds match the HEAD
+// side's SamplingConfig defaults (sampling.h) so a legitimate broadcast is never
+// rejected, only an out-of-range one.
+constexpr uint32_t kMinIntervalMs = 10000;
+constexpr uint32_t kMaxIntervalMs = 300000;
+
 /** Broadcast peer: LEAF sends to everyone, HEADs listen. No MAC provisioning. */
 constexpr uint8_t kBroadcastMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 

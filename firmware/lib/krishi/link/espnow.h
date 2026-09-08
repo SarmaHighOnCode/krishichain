@@ -27,6 +27,7 @@
 #endif
 
 #include "frame.h"
+#include "swarm.h"
 
 namespace krishi {
 
@@ -35,6 +36,20 @@ struct ReceivedFrame {
   uint8_t data[kMaxFrameLength];
   uint8_t len;
 };
+
+/**
+ * True if `data` is a frame either wire protocol this project speaks would parse:
+ * link/frame.h's own format (magic 0x4B, version 0x01) or swarm.h's (magic 0x4B43,
+ * see docs/adr/0005-espnow-link-protocol.md section 7 for why both coexist on the
+ * wire without colliding — different magic bytes, so each format's own parser
+ * already rejects the other's frames; this just decides what the radio callback
+ * queues at all, versus a stray frame from an unrelated ESP-NOW project on the
+ * same channel).
+ *
+ * Pure and host-testable even though the callback that calls it only runs on
+ * device — that split is deliberate, see firmware/test/test_espnow_dispatch.
+ */
+bool isRecognizedFrame(const uint8_t* data, size_t len);
 
 class EspNowLink {
  public:

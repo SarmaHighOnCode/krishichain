@@ -17,6 +17,7 @@
 #include "ringbuffer.h"
 #include "link/espnow.h"
 #include "link/frame.h"
+#include "swarm.h"
 #include "heartbeat.h"
 #include "sampling.h"
 #include "uplink.h"
@@ -44,10 +45,22 @@ static SamplingConfig gSamplingCfg;
 
 static uint32_t gLastSampleMs = 0;
 static uint32_t gLastUplinkMs = 0;
-static uint32_t gLastBeaconMs = 0;
 static uint32_t gLastHeartbeatMs = 0;
 static char gGatewayUrl[128] = "http://192.168.1.100:3000/api/ingest";
 static uint8_t gLotId[16] = {0};
+
+// Swarm heartbeat state (docs/adr/0005-espnow-link-protocol.md section 7, swarm.h).
+// H2's LeafLink state machine on the LEAF side times its failover against this
+// broadcast, so its cadence MUST be swarm::kHeartbeatPeriodMs, not roles.h's
+// kHeartbeatIntervalMs (30s) — that was tuned for the dashboard-facing
+// LEAF->HEAD telemetry heartbeat (heartbeat.h), a different message in a
+// different direction, and using it here would make every LEAF flap to
+// WiFi-direct almost constantly (3 misses * 30s vs. HEAD broadcasting every 30s
+// leaves no margin).
+static uint32_t gHeadSeq = 0;
+static uint8_t gLastAckDev[kAddressLength] = {0};
+static uint32_t gLastAckSeq = 0;
+static bool gHasAck = false;
 
 enum class LedState { kBoot, kOk, kOffline, kBuffering, kBreach, kFault };
 static LedState gLedState = LedState::kBoot;
@@ -125,13 +138,16 @@ static void runUplinkCycle() {
       gRingBuffer.releaseThrough(dev, resp.ackSeq);
       gLedState = LedState::kOk;
       if (memcmp(dev, gIdentity.address(), kAddressLength) != 0) {
-        AckFrame ack{};
-        memcpy(ack.dev, dev, kAddressLength);
-        ack.ackSeq = resp.ackSeq;
-        ack.serverTs = resp.serverTs;
-        uint8_t frameBuf[64];
-        size_t frameLen = encodeAckFrame(ack, frameBuf, sizeof(frameBuf));
-        gLink.broadcast(frameBuf, frameLen);
+        // Not our own record: it came from a LEAF. swarm.h's heartbeat carries a
+        // single ack (by design — "single-leaf fast path... not this demo",
+        // swarm.h), so remember it here and it goes out on the next periodic
+        // broadcast rather than an immediate one-off frame. That is a real
+        // trade-off (up to kHeartbeatPeriodMs of extra latency before the LEAF
+        // frees this batch from its own buffer), not a bug: the LEAF's ring
+        // buffer holds far more than one broadcast interval's worth of records.
+        memcpy(gLastAckDev, dev, kAddressLength);
+        gLastAckSeq = resp.ackSeq;
+        gHasAck = true;
       }
     } else if (resp.result == UplinkResult::kUnauthorised) {
       gLedState = LedState::kFault;
@@ -186,6 +202,24 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), pass.c_str());
 
+  // ESP-NOW cannot run on a different channel than an associated WiFi STA — the
+  // radio is single-channel. swarm.h fixes the whole swarm to kChannel so LEAF/CAM
+  // never need to scan for it, which means the AP this HEAD associates to MUST be
+  // configured to that channel, or LEAF/CAM will sit on kChannel forever and never
+  // hear this HEAD at all. That is an operational requirement, not a code bug, and
+  // it fails silently on the radio, so make it loud here instead.
+  {
+    uint32_t waitStart = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - waitStart < 15000) delay(100);
+    if (WiFi.status() == WL_CONNECTED && WiFi.channel() != swarm::kChannel) {
+      Serial.printf(
+          "WARN: AP '%s' is on channel %d, the swarm expects channel %d. "
+          "LEAF/CAM nodes will not find this HEAD until the router/hotspot is "
+          "reconfigured to channel %d.\n",
+          ssid.c_str(), WiFi.channel(), swarm::kChannel, swarm::kChannel);
+    }
+  }
+
   gIdentity.begin(gKeyStore);
   gChain.begin(gChainStore);
   gFlashStore.sectorSize(); // init partition check
@@ -206,16 +240,28 @@ void setup() {
 void loop() {
   handleSerialCli();
 
-  // 1. Radio queue drain
+  // 1. Radio queue drain.
+  //
+  // Two coexisting, non-colliding wire protocols land here (docs/adr/0005 section 7):
+  //   swarm.h    — RECORD: a LEAF's/CAM's signed sensor record. This is the live one;
+  //                LEAF and CAM both send this format today.
+  //   link/frame.h — HEARTBEAT: a node's own liveness/buffer-depth/battery report for
+  //                the ops dashboard (heartbeat.h). Nothing sends this yet (neither
+  //                node-leaf nor node-cam do), so this branch is presently unfed but
+  //                not wrong — it stays so that telemetry can be wired up later
+  //                without touching this loop again.
+  // They cannot be confused for each other: swarm.h's 2-byte magic (0x4B43) and
+  // link/frame.h's 1-byte-magic-plus-version (0x4B, 0x01) never overlap.
   ReceivedFrame rxFrame;
   while (gLink.pop(rxFrame)) {
-    uint8_t type = frameType(rxFrame.data, rxFrame.len);
-    if (type == kFrameRecord) {
-      RecordFrame rf;
-      if (decodeRecordFrame(rxFrame.data, rxFrame.len, rf)) {
-        gRingBuffer.appendCanonical(rf.canonical, rf.sig);
-      }
-    } else if (type == kFrameHeartbeat) {
+    const uint8_t* canonical = nullptr;
+    const uint8_t* sig = nullptr;
+    if (swarm::parseRecordFrame(rxFrame.data, rxFrame.len, &canonical, &sig)) {
+      gRingBuffer.appendCanonical(canonical, sig);
+      continue;
+    }
+
+    if (frameType(rxFrame.data, rxFrame.len) == kFrameHeartbeat) {
       HeartbeatFrame hf;
       if (decodeHeartbeatFrame(rxFrame.data, rxFrame.len, hf)) {
         gTracker.observe(hf, millis());
@@ -250,16 +296,26 @@ void loop() {
     gLastUplinkMs = now;
   }
 
-  // 4. Beacon
-  if (now - gLastBeaconMs >= kBeaconIntervalMs) {
-    BeaconFrame bf{};
-    memcpy(bf.headDev, gIdentity.address(), kAddressLength);
-    bf.channel = gLink.channel();
-    bf.uptimeS = now / 1000;
-    uint8_t frameBuf[64];
-    size_t frameLen = encodeBeaconFrame(bf, frameBuf, sizeof(frameBuf));
-    gLink.broadcast(frameBuf, frameLen);
-    gLastBeaconMs = now;
+  // 4. Swarm heartbeat — this is what LEAF's LeafLink actually listens for (swarm.h,
+  // failover.h). It carries the sample interval (so a HEAD-side incident can speed up
+  // the whole swarm, ADR-0004 section 4), and the single-leaf ack fast path: whichever
+  // non-HEAD device's records were most recently uplinked successfully gets its
+  // ackSeq echoed back here, freeing that LEAF's own buffer.
+  if (now - gLastHeartbeatMs >= swarm::kHeartbeatPeriodMs) {
+    swarm::Heartbeat hb;
+    memcpy(hb.head_dev, gIdentity.address(), kAddressLength);
+    hb.interval_ms = gSamplingState.intervalMs;
+    hb.head_seq = gHeadSeq++;
+    if (gHasAck) {
+      memcpy(hb.ack_dev, gLastAckDev, kAddressLength);
+      hb.ack_seq = gLastAckSeq;
+    }
+    hb.flags = (currentFlags & (kFlagLidOpen | kFlagShock | kFlagSensorFault)) != 0 ? 0x01 : 0x00;
+
+    uint8_t frameBuf[swarm::kHeartbeatLength];
+    size_t frameLen = swarm::packHeartbeat(hb, frameBuf, sizeof(frameBuf));
+    if (frameLen > 0) gLink.broadcast(frameBuf, frameLen);
+    gLastHeartbeatMs = now;
   }
 
   updateLed();

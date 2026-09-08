@@ -31,10 +31,18 @@ class LeafLink {
 
   explicit LeafLink(const Config& config = Config()) : config_(config) { init(); }
 
-  /** Feed a received HEAD heartbeat. Adopts the broadcast sample interval. */
+  /**
+   * Feed a received HEAD heartbeat. Adopts the broadcast sample interval, clamped to
+   * [kMinIntervalMs, kMaxIntervalMs] — a heartbeat is unauthenticated, so an
+   * out-of-range value is treated as noise rather than obeyed (swarm.h, section on
+   * kMinIntervalMs/kMaxIntervalMs).
+   */
   void onHeartbeat(uint32_t now_ms, const swarm::Heartbeat& hb) {
     last_beat_ms_ = now_ms;
-    interval_ms_ = hb.interval_ms;
+    uint32_t interval = hb.interval_ms;
+    if (interval < swarm::kMinIntervalMs) interval = swarm::kMinIntervalMs;
+    if (interval > swarm::kMaxIntervalMs) interval = swarm::kMaxIntervalMs;
+    interval_ms_ = interval;
     incident_ = (hb.flags & 0x01) != 0;
     if (mode_ == kWifiDirect) {
       ++rejoin_count_;

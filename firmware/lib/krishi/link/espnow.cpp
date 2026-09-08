@@ -23,7 +23,7 @@ static const uint8_t kDefaultPmk[16] = {'K', 'R', 'I', 'S', 'H', 'I', 'C', 'H', 
 #ifndef KRISHI_NATIVE
 KRISHI_RECV_FN(onEspNowRecv) {
   if (len <= 0 || static_cast<size_t>(len) > kMaxFrameLength) return;
-  if (frameType(data, static_cast<size_t>(len)) == 0) {
+  if (!isRecognizedFrame(data, static_cast<size_t>(len))) {
     gDroppedForeign++;
     return;
   }
@@ -42,6 +42,15 @@ KRISHI_RECV_FN(onEspNowRecv) {
 #endif
 
 }  // namespace
+
+bool isRecognizedFrame(const uint8_t* data, size_t len) {
+  if (frameType(data, len) != 0) return true;
+  if (len == swarm::kRecordFrameLength || len == swarm::kHeartbeatLength) {
+    const uint16_t magic = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    return magic == swarm::kMagic;
+  }
+  return false;
+}
 
 uint32_t EspNowLink::droppedForeign() const { return gDroppedForeign; }
 uint32_t EspNowLink::queueOverflows() const { return gQueueOverflows; }
