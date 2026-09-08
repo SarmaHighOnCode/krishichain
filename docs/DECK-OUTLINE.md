@@ -108,7 +108,9 @@ viable for a 3-acre farmer, not just a Walmart supplier.
 **Claim:** Verify it yourself — no KrishiChain account needed.
 
 - Restate the P6 auditor job-to-be-done (PRD §4): *"Verify the claim without asking the vendor
-  for permission"* — public chain anchors + an open verify script
+  for permission"* — chain anchors + an open verify script. If asked whether the chain is
+  public: it is local for this build, deliberately — take the `JUDGING.md` answer, do not
+  imply otherwise from the stage
 - What's next past the hackathon scope ladder (PRD §13, Should-tier): custody handoff with a
   wallet signature, EPCIS 2.0 projection, Polygon Amoy deployment, recall query, calibration
   records

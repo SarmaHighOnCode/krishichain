@@ -104,12 +104,14 @@ firmware/
 │   ├── uplink.{h,cpp}        # HTTP batching, ackSeq flow control, backoff
 │   ├── crypto/               # micro-ecc (secp256k1) + keccak256
 │   └── sensors/              # DHT22, LDR, reed, MPU6050 behind one interface
-├── node-farm/src/main.cpp
-├── node-transit/src/main.cpp
+├── node-head/src/main.cpp    # ESP32 WiFi relay + ESP-NOW coordinator
+├── node-leaf/src/main.cpp    # ESP32-S2 sensor node, WiFi-direct fallback
+├── node-cam/src/main.cpp     # ESP32-CAM witness
+├── cam-bringup/src/main.cpp  # camera bring-up sketch
 └── test/                 # native (desktop) tests against the golden vectors
 ```
 
-**Main loop (both nodes):**
+**Main loop (every sensing node):**
 
 ```
 boot
@@ -129,8 +131,11 @@ special case of offline, not the other way round — which is why the offline de
 and the slot is skipped on recovery. The chain state `(seq, prevDigest)` is committed to NVS
 *after* the slot write, so a crash between them replays one slot rather than losing one.
 
-**Two nodes, one codebase:** `node-farm` and `node-transit` differ only in sensor set, sampling
-interval and rule tags. Divergent `main.cpp`, shared `lib/krishi`.
+**One codebase, several roles:** `node-head`, `node-leaf` and `node-cam` differ in sensor set,
+sampling interval, rule tags and link role — the HEAD relays for the others over ESP-NOW
+([ADR-0004](adr/0004-heterogeneous-swarm.md), [ADR-0005](adr/0005-espnow-link-protocol.md)).
+Divergent `main.cpp`, shared `lib/krishi`. The signing, chaining and buffering path is identical
+across all three, which is what keeps one set of golden vectors authoritative for the swarm.
 
 ### 2.2 `packages/core` (TypeScript)
 

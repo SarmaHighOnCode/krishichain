@@ -119,11 +119,11 @@ hashes keep printing (chain intact), archive warns only.
 ## 4. Sanity commands (no board needed)
 
 ```bat
-cd D:\hackathon\iic3\krishichain\firmware
-C:\Users\Lenovo\.platformio\penv\Scripts\pio.exe test -e native   :: 12/12 green = protocol intact
+cd <repo>\firmware
+pio test -e native   :: 69/69 green = protocol intact
 ```
 
-`node-cam` compiles to link today and waits on H1's `identity/chain/buffer/
-uplink` `.cpp` implementations — `node-transit` fails identically on main,
-so that gap is H1's ticket, not this board. `cam-bringup` links TODAY and
-is the proof your hardware path works end to end.
+**Update:** H1's `identity/chain/buffer/uplink` implementations have landed, and all four
+board environments — `node-head`, `node-leaf`, `node-cam` and `cam-bringup` — now build and
+link clean on `main` with CI green. `node-cam` no longer waits on anything; `cam-bringup`
+remains the quickest proof that your camera hardware path works end to end.

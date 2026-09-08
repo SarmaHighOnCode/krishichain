@@ -35,8 +35,10 @@ Full context: [docs/PRD.md](docs/PRD.md) · [docs/ARCHITECTURE.md](docs/ARCHITEC
 ```
 firmware/          ESP32, PlatformIO, C++17   — owner H1
   lib/krishi/      identity, record, chain, ringbuffer, uplink, crypto, sensors
-  node-farm/       harvest node
-  node-transit/    cold-chain node
+  node-head/       ESP32 WiFi relay + ESP-NOW coordinator
+  node-leaf/       ESP32-S2 sensor node (ESP-NOW, WiFi-direct fallback)
+  node-cam/        ESP32-CAM witness node
+  cam-bringup/     camera bring-up sketch
 contracts/         Solidity 0.8.28, Hardhat 2.22 + viem   — owner S1
 apps/gateway/      Fastify + TS + SQLite               — owner S1
 apps/web/          Next.js 15 App Router + Tailwind    — owner S2
@@ -62,7 +64,7 @@ npm run e2e              # full pipeline test, no hardware
 Firmware:
 
 ```bash
-cd firmware/node-transit && pio run -t upload && pio device monitor -b 115200
+cd firmware && pio run -e node-head -t upload && pio device monitor -b 115200
 cd firmware && pio test -e native      # host-side tests against the golden vectors
 ```
 

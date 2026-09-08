@@ -12,18 +12,16 @@
 
 ### Quick PlatformIO Setup
 
-PlatformIO requires Python and handles ESP32 toolchain installation automatically.
-
-**Windows:** Run `setup-pio.bat` from the repo root.  
-**macOS/Linux:** Run `bash setup-pio.sh` from the repo root.
-
-Or install manually:
+PlatformIO requires Python and handles the ESP32 toolchain installation automatically:
 
 ```bash
 pip install -U platformio
+pio device list        # confirm the board is detected before you flash anything
 ```
 
-For detailed setup including driver installation and board detection, see [PLATFORMIO-SETUP.md](PLATFORMIO-SETUP.md).
+On Windows, a board that does not appear in `pio device list` is almost always a missing USB
+serial driver — CP210x for most ESP32 dev boards, CH340 for the cheaper clones. Install the
+one for your board from the vendor and re-plug it.
 
 ## First run
 
@@ -41,7 +39,7 @@ npm run dev
 |---|---|---|
 | Local chain (Hardhat node) | 8545 | Deterministic, offline-capable |
 | Gateway | 8080 | Ingest, verify, batch, anchor |
-| Web | 3000 | Consumer verify + ops dashboard |
+| Web | 3000 | Landing page, consumer verify + ops dashboard |
 
 Contracts are deployed to the local chain automatically on first `dev` start; addresses land in
 `deployments/localhost/`.
@@ -54,16 +52,11 @@ npm run sim                           # a simulated node streaming live records
 npm run sim -- --breach --gap-at 40   # inject a cold-chain breach and a chain gap
 ```
 
-Open http://localhost:3000/ops for the dashboard, and the `/verify/<lotId>` link it prints for
-the consumer view.
+Open http://localhost:3000 for the landing page, which links straight to the seeded truck lot.
+http://localhost:3000/ops is the dashboard, and `npm run seed` prints the `/verify/<lotId>`
+link for the consumer view.
 
 ## Firmware
-
-See [PLATFORMIO-SETUP.md](PLATFORMIO-SETUP.md) for comprehensive setup including:
-- Board driver installation
-- Device detection and troubleshooting
-- IDE integration (VS Code, CLion, etc.)
-- Build and upload workflow
 
 Quick reference:
 
@@ -94,16 +87,16 @@ cd firmware && pio test -e native
 
 ### Commissioning a node
 
-1. Ensure your board is detected: `pio device list` (see [PLATFORMIO-SETUP.md](PLATFORMIO-SETUP.md) for troubleshooting)
+1. Ensure your board is detected: `pio device list` (see the firmware troubleshooting table below)
 2. Flash the correct firmware for your board type:
-   - **FARM node (ESP32 dev board):** `pio run -e node-head -t upload`
-   - **TRANSIT node (ESP32-S2 Lolin Mini):** `pio run -e node-leaf -t upload`
-   - **WITNESS node (ESP32-CAM):** `pio run -e node-cam -t upload`
+   - **HEAD node (ESP32 dev board):** `pio run -e node-head -t upload`
+   - **LEAF node (ESP32-S2 Lolin Mini):** `pio run -e node-leaf -t upload`
+   - **CAM witness (ESP32-CAM):** `pio run -e node-cam -t upload`
 3. Read the device address printed once on first boot: `pio device monitor -b 115200`
-4. Register it:
+4. Register it — valid classes are `HEAD`, `LEAF`, `WITNESS` and `VIRTUAL`:
 
 ```bash
-npm run device:register -- --address 0x… --class TRANSIT_V1 --seal KC-SEAL-0042
+npm run device:register -- --address 0x… --class LEAF
 ```
 
 5. Point the node at the gateway (send via serial terminal):
@@ -124,7 +117,7 @@ Find the laptop's LAN IP with `ipconfig` (Windows) or `ip addr` (Linux/macOS). T
 |---|---|---|
 | Node gets `401` from the gateway | Device not in `DeviceRegistry`, or revoked | Run `device:register`; check you used the address, not the pubkey |
 | Records rejected with `CHAIN_FORK` | Node was re-flashed but kept its address while chain state reset | `pio run -t erase` and re-commission, or reset the device's chain state in the gateway |
-| Badge stuck on `PENDING ANCHOR` | Batch has not closed yet | Wait 60 s, or `npm run anchor:flush` |
+| Badge stuck on `PENDING ANCHOR` | Batch has not closed yet | Wait 60 s, or force it: `curl -X POST localhost:8080/anchor/flush` |
 | DHT22 returns NaN | Polled faster than 2 s, or a wiring/pull-up issue | Check the 10 kΩ pull-up; slow the interval |
 | Analog sensor always reads 0 | Pin is on ADC2, which is dead while WiFi is on | Move to ADC1 (GPIO 32–39) |
 | Node will not boot after wiring a sensor | Sensor pulling a strapping pin (0, 2, 12, 15) | Move the signal to a safe GPIO |
@@ -134,10 +127,10 @@ Find the laptop's LAN IP with `ipconfig` (Windows) or `ip addr` (Linux/macOS). T
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `pio: command not found` | PlatformIO not installed | Run `setup-pio.bat` (Windows) or `bash setup-pio.sh` (macOS/Linux) |
-| `No boards detected` | Drivers not installed, or board not plugged in | See [PLATFORMIO-SETUP.md § Device Connection](PLATFORMIO-SETUP.md#step-3-verify-your-board-connection) |
+| `pio: command not found` | PlatformIO not installed | `pip install -U platformio` |
+| `No boards detected` | Drivers not installed, or board not plugged in | Install the USB serial driver for your board (CP210x, or CH340 for clones), re-plug, then `pio device list` |
 | Upload fails: `espcomm_open` or `Failed to connect` | Serial port in use, or wrong board selected | Check `pio device list`; close serial monitor; try `pio run -e node-head -t erase` |
 | Serial monitor shows garbled text | Baud rate mismatch | Must be 115200 (already set in `platformio.ini`); check `pio device monitor` is not set differently |
 | Build fails: `undefined reference to micro-ecc` | Corrupted `.pio` cache | Delete `.pio/libdeps` and `.pio/build`, then rebuild |
 | Import errors in IDE (VS Code) | C/C++ include paths not configured | VS Code PlatformIO extension should auto-configure; check `.vscode/c_cpp_properties.json` exists |
-| Board not recognized in PlatformIO | Windows MAX_PATH issue (long file names) | Ensure Windows long-path support is enabled; see [PLATFORMIO-SETUP.md](PLATFORMIO-SETUP.md) |
+| Board not recognized in PlatformIO | Windows MAX_PATH issue (long file names) | Enable Windows long-path support, or move the repo closer to the drive root |

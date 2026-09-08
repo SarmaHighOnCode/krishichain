@@ -84,7 +84,7 @@ flowchart LR
 | `firmware/lib/krishi/` | Shared C++ lib: identity, signing, hash chain, ring buffer | H1 |
 | `contracts/` | Solidity (Hardhat + viem) | S1 |
 | `apps/gateway/` | Fastify ingest, verification, Merkle batcher, anchor service | S1 |
-| `apps/web/` | Next.js consumer verify + ops dashboard | S2 |
+| `apps/web/` | Next.js landing page, consumer verify + ops dashboard | S2 |
 | `packages/core/` | Canonical encoding, Merkle, signature verify, EPCIS types | S1 |
 | `hardware/` | BOM, wiring diagrams, enclosure, calibration logs | H2 |
 
@@ -95,24 +95,31 @@ npm install
 npm run dev
 ```
 
+`npm run dev` starts the local chain, the gateway and the web app together. The landing page is
+at http://localhost:3000, the ops dashboard at `/ops`, and a consumer view at `/verify/<lotId>`.
+
+To get something to look at without any hardware:
+
+```bash
+npm run seed   # three smallholdings into one truck lot, one of them breaches
+```
+
 ### Firmware development (ESP32 nodes)
 
-For PlatformIO setup (board detection, driver installation, build config):
+PlatformIO needs Python ≥ 3.9:
 
-**Windows:**
 ```bash
-setup-pio.bat
+pip install -U platformio
+cd firmware
+pio run -e node-head              # build
+pio run -e node-head -t upload    # build + flash
+pio test -e native                # host-side tests, no board required
 ```
 
-**macOS / Linux:**
-```bash
-bash setup-pio.sh
-```
+Environments: `node-head`, `node-leaf`, `node-cam`, `cam-bringup`, `native`.
 
-Or follow the [PlatformIO Setup Guide](docs/PLATFORMIO-SETUP.md) for step-by-step instructions.
-
-See [docs/RUNBOOK.md](docs/RUNBOOK.md) for the full setup, including firmware flashing and
-the offline demo chain.
+See [docs/RUNBOOK.md](docs/RUNBOOK.md) for commissioning, flashing and the offline demo chain,
+including a firmware troubleshooting table.
 
 ## Documents
 
