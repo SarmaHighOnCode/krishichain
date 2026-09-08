@@ -20,7 +20,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 
-import { ZERO_ROOT, type NodeHealth, type OpsSummary } from "../lib/ops";
+import { toNodeHealth, ZERO_ROOT, type NodeHealth, type OpsSummary } from "../lib/ops";
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_ENDPOINT = "/api/ops/summary";
@@ -204,10 +204,10 @@ function SessionTrend({ history }: { history: TrendPoint[] }) {
 }
 
 /**
- * Stub for the per-device table this dashboard should eventually show. The gateway has no
- * per-node endpoint today (see the comment on `NodeHealth` in lib/ops.ts) — `nodes` is always
- * empty until one exists. Rendering a hardcoded row here would look like real telemetry; it
- * isn't, so this renders an honest "not available yet" state instead.
+ * Per-device table, fed by `summary.nodes` — real rows from the gateway's `GET /ops/nodes` /
+ * `GET /ops/summary` (S1-14/S1-15 landed a real per-node health store; this used to be a
+ * permanently-empty honest stub before that endpoint existed). `status` is the gateway's own
+ * computed `online` flag, not re-derived here — see `toNodeHealth` in lib/ops.ts.
  */
 function NodeHealthTable({ nodes }: { nodes: NodeHealth[] }) {
   return (
@@ -215,11 +215,8 @@ function NodeHealthTable({ nodes }: { nodes: NodeHealth[] }) {
       <p className="dash-panel__title">Node health</p>
       {nodes.length === 0 ? (
         <p className="muted dash-panel__empty">
-          Per-device last-seen and buffer depth aren&apos;t available yet — the gateway only
-          exposes aggregate counts via <code>GET /ops/summary</code>. This table is wired up to
-          render real rows as soon as a <code>GET /ops/nodes</code>-style endpoint (per-device{" "}
-          <code>{"{ address, lastSeen, bufferDepth, status }"}</code>) exists; until then it stays
-          empty rather than showing fabricated devices.
+          No nodes have reported in yet. Start <code>npm run sim-swarm</code> (or power up a
+          board) to see health rows here.
         </p>
       ) : (
         <table className="dash-table">
@@ -238,17 +235,9 @@ function NodeHealthTable({ nodes }: { nodes: NodeHealth[] }) {
                   <code>{node.address}</code>
                 </td>
                 <td>{new Date(node.lastSeen).toLocaleTimeString()}</td>
-                <td className="dash-table__tnum">{node.bufferDepth}</td>
+                <td className="dash-table__tnum">{node.bufferDepth ?? "—"}</td>
                 <td>
-                  <span
-                    className={`badge ${
-                      node.status === "online"
-                        ? "badge--ok"
-                        : node.status === "stale"
-                          ? "badge--pending"
-                          : "badge--bad"
-                    }`}
-                  >
+                  <span className={`badge ${node.status === "online" ? "badge--ok" : "badge--bad"}`}>
                     {node.status}
                   </span>
                 </td>
@@ -306,8 +295,7 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
 
   const secondsAgo = lastUpdated !== null ? Math.max(0, Math.floor((Date.now() - lastUpdated) / 1000)) : null;
 
-  // Per-device rows: none available from the gateway yet — see NodeHealthTable's comment.
-  const nodes: NodeHealth[] = [];
+  const nodes: NodeHealth[] = summary ? toNodeHealth(summary.nodes) : [];
 
   const updatedText =
     secondsAgo === null ? "waiting for first update…" : secondsAgo <= 1 ? "updated just now" : `updated ${secondsAgo}s ago`;
