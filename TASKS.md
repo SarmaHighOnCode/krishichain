@@ -121,6 +121,10 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 ### `H1-07` · Uplink + `ackSeq` flow control [P0] [3h]
 - **Accept** Batches ≤ 100 records; only advances the tail on `200` + `ackSeq`; exponential
   backoff 2 s → 60 s on 5xx; **stops uploading and blinks fault on `401`**.
+- **When this lands** the ESP32 build links again — delete `continue-on-error` from the
+  "ESP32 build (transit node)" step in `.github/workflows/ci.yml`. It was made
+  non-blocking only because `identity`/`chain`/`ringbuffer`/`uplink` are headers with no
+  `.cpp` yet, and a permanently red CI trains everyone to ignore it.
 
 ### `H1-08` · Store-and-forward drain [P0] [2h]
 - **Accept** **The demo test:** pull WiFi for 10 minutes, restore it → the entire backlog uploads
