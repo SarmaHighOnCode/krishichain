@@ -67,6 +67,25 @@ jobs:
         working-directory: firmware
         run: pio test -e native
 
-      - name: ESP32 build (transit node)
+      # One step per board. This is deliberately not collapsed into a single command:
+      # native tests only compile the pure lib/krishi logic, never node-head/node-leaf/
+      # node-cam/src themselves, so a device-only bug (wrong macro name, a type declared
+      # in a .cpp with no header, a stale env name after a rename) is invisible to
+      # `pio test -e native` and compiles clean right up until someone tries to flash a
+      # board. That happened twice in one afternoon reconciling the H1/H2 PRs — this is
+      # what would have caught both before they reached main.
+      - name: ESP32 build (node-head)
         working-directory: firmware
-        run: pio run -e node-transit
+        run: pio run -e node-head
+
+      - name: ESP32 build (node-leaf)
+        working-directory: firmware
+        run: pio run -e node-leaf
+
+      - name: ESP32 build (node-cam)
+        working-directory: firmware
+        run: pio run -e node-cam
+
+      - name: ESP32 build (cam-bringup)
+        working-directory: firmware
+        run: pio run -e cam-bringup

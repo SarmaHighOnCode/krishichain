@@ -36,10 +36,7 @@
 #include "pins.h"
 #include "record.h"
 #include "ringbuffer.h"
-#include "store/flash_store.h"
-#ifndef KRISHI_NATIVE
 #include "store/esp_flash_store.h"
-#endif
 #include "swarm.h"
 #include "uplink.h"
 
@@ -47,9 +44,7 @@ namespace {
 
 krishi::Identity identity;
 krishi::Chain chain;
-#ifndef KRISHI_NATIVE
 krishi::EspFlashStore flash_store;
-#endif
 krishi::RingBuffer buffer;
 krishi::Uplink uplink;
 krishi::LeafLink leaf_link;
@@ -180,9 +175,8 @@ void setup() {
   }
 
   chain.begin();
-#ifndef KRISHI_NATIVE
+  flash_store.sectorSize();  // init partition check
   buffer.begin(flash_store);
-#endif
 
 #ifdef ARDUINO_ARCH_ESP32
   WiFi.mode(WIFI_STA);
