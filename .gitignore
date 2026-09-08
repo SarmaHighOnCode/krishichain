@@ -1,0 +1,66 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# env / secrets — never commit keys, mnemonics or RPC URLs
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+deployer.json
+
+# build output
+dist/
+build/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# hardhat
+cache/
+artifacts/
+typechain-types/
+coverage/
+coverage.json
+gas-report.txt
+
+# deployments: local is generated, testnet is committed
+deployments/localhost/
+deployments/hardhat/
+
+# platformio / firmware
+.pio/
+.pioenvs/
+.piolibdeps/
+firmware/**/.vscode/
+*.elf
+*.bin.bak
+
+# databases / runtime data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/
+quarantine/
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# os / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# test / tooling
+.nyc_output/
+playwright-report/
+test-results/
