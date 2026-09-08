@@ -5,6 +5,11 @@ Owner: **H2** (build, power, enclosure, calibration) · **H1** (firmware, pin co
 > Swarm update (ADR-0004): four device classes, one 90-byte record. S2 Lolin LEAF
 > (§3a) + ESP32-CAM WITNESS (§3b, H2-12) added below. Pins live in
 > `firmware/lib/krishi/pins.h`, which mirrors this file exactly.
+>
+> BENCH REALITY (no sensors on the table): every ESP runs synth readings —
+> no wiring beyond USB. LEAF synthesizes T/H/lux in firmware; CAM derives
+> `lux` from its own camera; live sensor truth comes from the phone PWA
+> virtual node. The pin tables below are reserved assignments, not build steps.
 
 > **Status: the BOM below is a specification, not an inventory.** Confirmed hardware is 2× ESP32
 > and a PlatformIO toolchain. Every peripheral is listed with a substitute and a "what we lose"
@@ -121,16 +126,20 @@ from `firmware/lib/krishi/pins.h`, which mirrors this exactly.
 
 ESP32-S2FN4R2, single-core, no Bluetooth, native USB-C. 4 MB flash → uses
 `firmware/partitions-4mb.csv` (krishibuf 128 KB ≈ 1,365 slots ≈ 11 h @ 30 s).
-S2 ADC works with WiFi on, so the ADC2 trap above does not apply — but every
-pin below is a safe first-pick GPIO (1,2,3,4,5,6,7,8,17,18,21,38) anyway.
+
+NO WIRING — synth mode. T/H/lux are synthesized in firmware (same curve as
+`scripts/sim-node.ts`); the phone PWA carries live truth. Pins are reserved
+assignments only; leave everything unwired.
 
 | Signal | GPIO | Notes |
 |---|---|---|
-| DHT22 data | 4 | 10 kΩ pull-up to 3.3 V |
-| LDR (ADC) | 5 | Safe GPIO, ADC-capable |
-| Battery sense (ADC) | 6 | Via a 100 kΩ/100 kΩ divider — **required**, raw Li-ion exceeds 3.3 V |
+| DHT22 data | 4 | RESERVED — leave unwired |
+| LDR (ADC) | 5 | RESERVED — leave unwired |
+| Battery sense (ADC) | 6 | RESERVED — leave unwired |
 | Status LED | 15 | Onboard blue LED |
-| Button (lot bind) | 0 | BOOT button, active low |
+| Button (lot bind) | 0 | BOOT button, active low — forces an immediate sample |
+
+Bench controls over serial: `HEAT` starts the breach climb, `COOL` ends it.
 
 Radio: ESP-NOW broadcast to HEAD on channel 1 (`swarm.h` `kChannel` — the whole
 swarm lives there; WiFi starts on the same channel). HEAD loss after 3 missed
@@ -139,12 +148,14 @@ guard in `failover.h`, proven in `firmware/test/test_swarm`).
 
 ### 3b. WITNESS node (AI Thinker ESP32-CAM, `node-cam`) — H2-12
 
-The camera + SD own nearly every pin, so there is no DHT/LDR: T/H always carry
-the fault sentinel and `lux` is the frame mean-luma proxy (sealed-box < 15,
-open light > 80, threshold 40 tuned on the bench). Each capture posts a normal
-canonical record (so the companion links to a stored digest) plus a
-`CAM_PHOTO_V1` companion (96-byte canonical in `companion.h`, signed like a
-record) via POST `/ingest/companion`. No raw photo on-chain, ever.
+NO WIRING — camera + SD are on-board modules. T/H always carry the fault
+sentinel (no DHT on this board); `lux` is the frame mean-luma proxy
+(sealed-box < 15, open light > 80, threshold 40 tuned on the bench).
+Each capture posts a normal canonical record (so the companion links to a
+stored digest) plus a `CAM_PHOTO_V1` companion (96-byte canonical in
+`companion.h`, signed like a record) via POST `/ingest/companion`.
+No raw photo on-chain, ever — but every frame IS archived to the on-board
+SD as `/krishi/c<seq>.raw` + `.meta`, the backup if a batch/companion is lost.
 
 | Signal | GPIO | Notes |
 |---|---|---|

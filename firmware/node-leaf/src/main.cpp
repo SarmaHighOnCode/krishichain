@@ -1,16 +1,24 @@
 /**
  * KrishiChain LEAF NODE (ESP32-S2 Lolin) — ticket H2-11.
  *
- * Dense cheap sensing: DHT22 T/H + LDR light. Prefers ESP-NOW broadcast to the
- * HEAD; falls back to WiFi-direct POST /ingest when the HEAD goes silent
- * (LeafLink, lib/krishi/failover.h). S2 is single-core, no BT — never HEAD.
+ * SYNTH MODE: no sensors wired (no DHT/LDR on the bench). T/H/lux are
+ * synthesized with the same curve as scripts/sim-node.ts (4C wobble, breach
+ * climb on demand), so the LEAF's chain/ESP-NOW/failover story is fully
+ * demoable with zero hardware. The phone PWA is the authoritative live
+ * source in the demo; this node proves a second signer in the lot.
+ *
+ * Prefers ESP-NOW broadcast to the HEAD; falls back to WiFi-direct
+ * POST /ingest when the HEAD goes silent (LeafLink, lib/krishi/failover.h).
+ * S2 is single-core, no BT — never HEAD.
  *
  * Loop (ARCHITECTURE §2.1a, ADR-0004):
- *   read sensors → stamp chain → encode → digest → sign → append to flash FIRST
- *   → if link==ESP-NOW: broadcast frame → if link==WiFi: drain via Uplink/ackSeq
+ *   synth sensors → stamp chain → encode → digest → sign → append to flash FIRST
+ *   → if ESP-NOW: broadcast frame → if WiFi: drain via Uplink/ackSeq
  *
  * Channel discipline: the whole swarm lives on krishi::swarm::kChannel. WiFi
  * begins on that channel too — a LEAF on channel 6 never hears a HEAD on 1.
+ *
+ * NO WIRING. Only the onboard LED + BOOT button are touched.
  */
 
 #include <Arduino.h>
@@ -20,8 +28,6 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #endif
-
-#include <DHT.h>
 
 #include "chain.h"
 #include "companion.h"
@@ -41,7 +47,8 @@ krishi::RingBuffer buffer;
 krishi::Uplink uplink;
 krishi::LeafLink leaf_link;
 
-DHT dht(krishi::pins::kDhtData, DHT22);
+bool synth_breach = false;  // serial `HEAT` starts the climb, `COOL` ends it
+uint32_t synth_seq = 0;
 
 volatile bool heartbeat_pending = false;
 uint8_t heartbeat_buf[krishi::swarm::kHeartbeatLength];
@@ -66,32 +73,19 @@ krishi::Record readSensors() {
   krishi::Record record;
   memcpy(record.dev, identity.address(), krishi::kAddressLength);
 
-  // TODO(H1-09): move behind the shared sensor layer. Direct reads here so H2
-  // can bench the S2 wiring without waiting on the abstraction.
-  float temp = dht.readTemperature();
-  float hum = dht.readHumidity();
-  if (isnan(temp) || isnan(hum)) {
-    record.t = krishi::kSensorFaultTemp;
-    record.h = krishi::kSensorFaultHumidity;
-    record.flags |= krishi::kFlagSensorFault;
-  } else {
-    record.t = static_cast<int16_t>(temp * 10);
-    record.h = static_cast<uint16_t>(hum * 10);
+  // SYNTH (bench reality: no DHT/LDR wired). Same curve as sim-node.ts:
+  // 4.0C ± 0.4 wobble; HEAT climbs ~0.22C/record up to 28C for the breach beat.
+  int16_t temp = static_cast<int16_t>(40 + (static_cast<int>(synth_seq * 37) % 9) - 4);
+  if (synth_breach && synth_seq > 20) {
+    int32_t climb = temp + static_cast<int32_t>((synth_seq - 20) * 22) / 10;
+    temp = static_cast<int16_t>(climb > 280 ? 280 : climb);
   }
-
-  // LDR divider on ADC1 (S2 ADC is usable with WiFi on, unlike classic ADC2).
-  int raw = analogRead(krishi::pins::kLdr);
-  record.lux = static_cast<uint16_t>(raw);
-
-  if (krishi::pins::kHasBatterySense) {
-    int batt = analogRead(krishi::pins::kBatterySense);
-    // 100k/100k divider, 13-bit ADC, 3.3V ref: rough percent over 3.0–4.2V.
-    float volts = (batt / 8191.0f) * 3.3f * 2.0f;
-    record.bat = volts >= 4.15f ? 100 : volts <= 3.0f ? 0
-                                 : static_cast<uint8_t>((volts - 3.0f) / 1.2f * 100.0f);
-  } else {
-    record.bat = krishi::kBatteryMains;
-  }
+  record.t = temp;
+  record.h = static_cast<uint16_t>(800 + (synth_seq % 40));
+  record.lux = synth_breach && synth_seq > 20 ? 420 : 0;  // lid-open proxy with heat
+  if (synth_breach && synth_seq > 20) record.flags |= krishi::kFlagLidOpen;
+  record.bat = static_cast<uint8_t>(synth_seq > 800 ? 20 : 100 - synth_seq / 10);
+  ++synth_seq;
 
   record.ts = 0;  // TODO(H1-08): NTP. tsq stays UNSYNCED until first sync.
   record.tsq = krishi::kTimeUnsynced;
@@ -146,10 +140,9 @@ void setup() {
 #endif
   pinMode(krishi::pins::kStatusLed, OUTPUT);
   pinMode(krishi::pins::kLotButton, INPUT_PULLUP);
-  dht.begin();
 
   Serial.println();
-  Serial.println("KrishiChain LEAF node (S2)");
+  Serial.println("KrishiChain LEAF node (S2, synth — no sensors wired)");
 
   if (!identity.begin()) {
     Serial.println("FATAL: identity unavailable");
@@ -192,6 +185,20 @@ void setup() {
 }
 
 void loop() {
+  // Bench controls over serial: HEAT starts the breach climb, COOL ends it.
+  // The button forces an immediate sample so the beat lands on cue.
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd == "HEAT") {
+      synth_breach = true;
+      Serial.println("synth breach ON");
+    } else if (cmd == "COOL") {
+      synth_breach = false;
+      Serial.println("synth breach OFF");
+    }
+  }
+  bool force_sample = digitalRead(krishi::pins::kLotButton) == LOW;
 #ifdef ARDUINO_ARCH_ESP32
   if (heartbeat_pending) {
     heartbeat_pending = false;
@@ -216,7 +223,7 @@ void loop() {
   }
 
   uint32_t interval = leaf_link.sampleIntervalMs();
-  if (millis() - last_sample_ms < interval) {
+  if (!force_sample && millis() - last_sample_ms < interval) {
     delay(50);
     return;
   }

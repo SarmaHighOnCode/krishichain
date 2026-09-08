@@ -33,12 +33,14 @@ constexpr bool kHasBatterySense = false;
 
 /**
  * LEAF node on the Wemos Lolin S2 Mini (ESP32-S2FN4R2, single-core, no BT).
- * Safe first-pick GPIOs per the S2 Mini pinout: 1,2,3,4,5,6,7,8,17,18,21,38.
- * GPIO15 is the onboard blue LED; GPIO0 is the BOOT button.
+ * BENCH REALITY: no sensors wired — all readings are synthesized in firmware
+ * and live data comes from the phone PWA. The pin numbers below are reserved
+ * assignments only (kept so a future DHT/LDR drops in without a code change);
+ * nothing needs to be connected. Only the onboard LED + BOOT button are used.
  */
-constexpr int kDhtData = 4;        // DHT22 data, 10k pull-up to 3V3
-constexpr int kLdr = 5;            // light divider, ADC-capable, safe GPIO
-constexpr int kBatterySense = 6;   // ADC via a 100k/100k divider — REQUIRED, Li-ion > 3.3V
+constexpr int kDhtData = 4;        // RESERVED for DHT22, 10k pull-up to 3V3 — leave unwired
+constexpr int kLdr = 5;            // RESERVED for light divider — leave unwired
+constexpr int kBatterySense = 6;   // RESERVED for 100k/100k divider — leave unwired
 constexpr int kStatusLed = 15;     // onboard blue LED
 constexpr int kLotButton = 0;      // BOOT button, active low
 
@@ -49,9 +51,9 @@ constexpr bool kHasBatterySense = true;
 #elif defined(KRISHI_NODE_CAM)
 
 /**
- * WITNESS node on the AI Thinker ESP32-CAM. The camera + SD own nearly every
- * pin, so there is no DHT/LDR here: `lux` is the frame mean-luma proxy and
- * T/H always carry the fault sentinel. GPIO33 is the onboard red lamp
+ * WITNESS node on the AI Thinker ESP32-CAM. Camera + SD are on-board modules —
+ * no wiring. `lux` is the frame mean-luma proxy and T/H always carry the fault
+ * sentinel (no DHT/LDR on this board). GPIO33 is the onboard red lamp
  * (active low) — the lid-open beacon. GPIO4 is the white flash LED.
  */
 constexpr int kRedLed = 33;        // onboard red lamp, active low
