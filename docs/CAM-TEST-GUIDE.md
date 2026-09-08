@@ -30,11 +30,11 @@ PlatformIO install — same `pio` your Meantendo project uses).
 With the ESP32-CAM-MB: just seat the CAM on the MB, set its switch to the
 program position, plug USB. No jumpers at all.
 
-## 2. Flash the bring-up firmware first (proves board + cable + SD)
+## 2. Flash the bring-up firmware first (proves board + cable + SD + WiFi)
 
-This firmware has ZERO krishi dependencies — plain Arduino + camera + SD.
-If this fails, the problem is the toolchain/board, not our protocol code.
-Do not flash `node-cam` until this prints captures.
+This firmware has ZERO krishi dependencies — plain Arduino + camera + SD +
+a web page. If this fails, the problem is the toolchain/board, not our
+protocol code. Do not flash `node-cam` until you see your own camera feed.
 
 ```bat
 cd D:\hackathon\iic3\krishichain\firmware
@@ -42,20 +42,26 @@ C:\Users\Lenovo\.platformio\penv\Scripts\pio.exe run -e cam-bringup -t upload
 C:\Users\Lenovo\.platformio\penv\Scripts\pio.exe device monitor -b 115200
 ```
 
-Power cycle with GPIO0 UNGROUNDED (run mode), then expect every ~10 s:
+Power cycle with GPIO0 UNGROUNDED (run mode), then expect:
 
 ```
 cam-bringup ok
-camera: OV2640 QVGA grayscale, PSRAM frame buffer
+camera: OV2640 JPEG SVGA, PSRAM frame buffer
 sd: 1234 MB free
-cap #0 mean=87 bytes=76800 sd=ok
+wifi: 192.168.x.x — open it for the LIVE feed
+cap #0 mean=87 bytes=12345 sd=ok
 ```
 
 Checks:
 
-- [ ] `mean=80–150` in room light, drops to `<15` when you cover the lens —
-  that swing IS the lid verdict signal (threshold 40, red lamp follows it)
-- [ ] `sd=ok` and `/bringup/c0.raw` + `c0.txt` exist on the card
+- [ ] Open `http://192.168.x.x/` on your laptop/phone — you see the LIVE
+  camera feed refreshing every 5 s, plus a Capture link. This is how you SEE
+  what the camera sees; no file viewer needed
+- [ ] `/bringup/c0.jpg` on the SD opens in any photo viewer (JPEG SVGA —
+  the old `.raw` pixel dumps are gone)
+- [ ] Cover the lens → feed goes dark, `mean` drops, red lamp turns off.
+  Uncover → bright again, lamp on. That swing IS the lid verdict signal
+  (threshold 40): dark sealed box = `lid=shut`, bright room = `lid=OPEN`
 - [ ] `sd: MOUNT FAILED` → reseat the card, confirm FAT32, retry (captures
       still print — the card is backup, not blocking, at this stage)
 
@@ -67,6 +73,8 @@ Troubleshooting:
 | `camera init failed` | Wrong env (`esp32cam`), or 5V used instead of 3.3V |
 | Brownouts / reboot loop | USB port too weak — powered hub or shorter cable |
 | COM port missing | Adapter driver (CP210x/FTDI); MB board needs its CH340 driver |
+| `wifi: FAILED` | Wrong SSID/pass in `cam-bringup/src/main.cpp` (`kWifiSsid`) — SD still works |
+| Live page loads but no image | Point the lens at light; check `cap #N` lines are printing |
 
 ## 3. Flash the real witness firmware
 
