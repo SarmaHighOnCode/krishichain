@@ -30,6 +30,50 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 
 ---
 
+## Swarm delta (ADR-0004) — heterogeneous nodes, web twins
+
+### `H1-14` · HEAD relay + heartbeat + adaptive interval [H1] [P0] [3h]
+- **Scope** ESP-NOW receive + forward preserving `dev,sig,seq,prev`; heartbeat
+  broadcast; obey gateway `INTERVAL` command (30 s → 10 s on incident).
+- **Accept** LEAF batch forwarded byte-identical; interval switch observed live.
+- **Non-goals** No CAM code, no phone code.
+
+### `H2-11` · LEAF (S2 Lolin) bring-up [H2] [P0] [3h]
+- **Scope** Sense T/H/light, ESP-NOW send to HEAD, WiFi-direct fallback,
+  flash buffer. Pin map entry in `docs/HARDWARE.md`.
+- **Accept** Auto-failover HEAD-loss → WiFi direct demonstrated once.
+- **Non-goals** No signing-algorithm change; reuse `lib/krishi`.
+
+### `H2-12` · CAM witness (photo-hash + lid verdict) [H2] [P1] [3h]
+- **Scope** Capture → `keccak256(photo)` + lid open/closed verdict as signed
+  companion attestation linked by `(dev, seq, digest)`. No raw photo on-chain.
+- **Accept** Companion verifies against record digest on gateway.
+- **Non-goals** No image streaming, no on-device ML.
+
+### `S1-14` · Companion ingest + consensus breach [S1] [P0] [4h]
+- **Scope** Accept relay wrappers + CAM/IMU companions; 2-of-3 breach rule
+  (temp + CAM lid + IMU shock, same lot/window) → `flagLot`.
+- **Accept** Single-sensor spike does NOT flag; 2-of-3 DOES within 10 s.
+- **Non-goals** No canonical-record change.
+
+### `S1-15` · MQTT broker + `sim-swarm.ts` [S1] [P0] [3h] — **UNBLOCKS S2**
+- **Scope** Mosquitto on laptop; `sim-swarm` fakes HEAD/LEAF/CAM/VIRTUAL with
+  real keys/signatures, gap/breach injection.
+- **Accept** `npm run sim-swarm` drives twins dashboard with no hardware.
+
+### `S2-12` · Web twins (map + 3D-lite + health) [S2] [P0] [5h]
+- **Scope** Leaflet field map + R3F box-per-crate twins + health cards, live
+  over MQTT-WS. Web, not Unity.
+- **Accept** Node kill → twin greys in ≤ 5 s; breach → twin + badge update.
+- **Non-goals** No Unity build.
+
+### `S2-13` · Phone PWA virtual-node [S2] [P1] [4h]
+- **Scope** PWA speaks `POST /ingest` with soft key, streams GPS/IMU, BLE
+  advertise for proximity custody.
+- **Accept** Phone record verifies end-to-end like any ESP.
+
+---
+
 ## H1 · Firmware (Jaideep)
 
 ### `H1-01` · secp256k1 signing benchmark [P0] [1h]

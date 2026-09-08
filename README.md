@@ -11,9 +11,11 @@ IIC 2026 · Problem Statement 06 · AgriTech
 
 Putting supply-chain data on a blockchain does not make it true. It makes it *immutable* —
 and immutable garbage is still garbage. KrishiChain closes that gap by pushing cryptography
-**down into a ₹700 sensor node**: every temperature, humidity and tamper reading is signed on
+**down into ₹400–900 sensor nodes**: every temperature, humidity and tamper reading is signed on
 the ESP32 by a private key that never leaves the chip, and each record is hash-chained to the
-one before it. The result is a data stream that is **attributable** (this exact commissioned
+one before it. A heterogeneous swarm — ESP32 HEADs, S2 Lolin LEAFs, ESP32-CAM witnesses and
+phone virtual-nodes — relays everything to a laptop field base with ESP-NOW → WiFi fallback,
+so evidence gets out one way or another. See [ADR-0004](docs/adr/0004-heterogeneous-swarm.md). The result is a data stream that is **attributable** (this exact commissioned
 device said this), **gapless** (records cannot be silently dropped or reordered, even while
 offline), and **independently verifiable** (a consumer's phone recomputes a Merkle proof against
 a root anchored on a public chain — without trusting our servers).

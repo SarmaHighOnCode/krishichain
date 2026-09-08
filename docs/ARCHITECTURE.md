@@ -66,6 +66,30 @@ verifiable proof or is explicitly marked unverifiable. This is why:
 
 ## 2. Component design
 
+### 2.1a Swarm layer (ADR-0004) — heterogeneous nodes, laptop base
+
+Four device classes speak one record format (PROTOCOL v1 frozen):
+
+| Class | Role | Sensors | Uplink |
+|---|---|---|---|
+| ESP32 DevKit | HEAD — senses, buffers, forwards | T/H + tamper | ESP-NOW rx + WiFi/MQTT to laptop |
+| ESP32-S2 Lolin | LEAF — dense cheap sensing | T/H/light | ESP-NOW to HEAD; WiFi direct fallback |
+| ESP32-CAM | WITNESS — visual evidence | photo hash + lid verdict | WiFi to laptop (companion attestation) |
+| Phone PWA | VIRTUAL — GPS + motion + camera backup | GPS/IMU/camera | WiFi/MQTT direct; BLE advertise for proximity |
+
+Rules: relay never rewrites `dev,sig,seq,prev` — gateway verifies end-to-end.
+CAM/GPS/IMU ride as companions linked by `(dev, seq, digest)`, never inside
+the 90 canonical bytes. Transport fallback: LEAF→ESP-NOW→HEAD, HEAD-loss→WiFi
+direct, no-net→flash buffer. Heads heartbeat; leafs pick strongest RSSI.
+
+Swarm behaviours (the selling point): 2-of-3 consensus breach (temp + CAM lid
++ IMU shock, same lot/window), adaptive sampling broadcast (30s→10s on
+incident), custody-follow by proximity (nearest node subscribes to lot).
+
+Dashboard is web, not Unity: Leaflet field map + R3F box-per-crate twins
+(colour = temp, badge = proof state), live over MQTT-WS from the laptop
+gateway. Unity is P2 replay-only.
+
 ### 2.1 Node firmware (`firmware/`)
 
 PlatformIO, Arduino-ESP32 core, C++17.

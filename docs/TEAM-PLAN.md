@@ -2,10 +2,10 @@
 
 | Role | Person | Track | Owns |
 |---|---|---|---|
-| **H1** | Jaideep | Hardware | Firmware, device identity, crypto, hash chain, flash buffer, uplink |
-| **H2** | (friend) | Hardware | Sensors, power, enclosure, tamper rig, calibration, demo props, backup board |
-| **S1** | | Software | Contracts, gateway, Merkle/anchor pipeline, `packages/core` |
-| **S2** | | Software | Consumer verify UI, ops dashboard, QR/labels, pitch assets |
+| **H1** | Jaideep | Hardware | HEAD firmware (DevKit): identity, signing, hash chain, ring buffer, ESP-NOW rx + WiFi uplink, heartbeat/adaptive-interval |
+| **H2** | (friend) | Hardware | LEAF (S2 Lolin) + CAM bring-up, all builds/wiring/power/enclosures, photo-hash + tamper rig, calibration, cold-box, backup boards |
+| **S1** | | Software | Protocol companions (CAM/IMU/relay), gateway ingest + verify + consensus breach, Merkle/anchor pipeline, MQTT broker, `sim-swarm.ts` |
+| **S2** | | Software | Web twins dashboard (map + 3D-lite + health), phone PWA virtual-node, consumer verify + ops UI, QR/labels, pitch assets |
 
 ---
 
