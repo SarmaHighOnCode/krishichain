@@ -7,7 +7,7 @@
  * Live: ingest, signature and chain verification, relay unwrapping, companion attestations,
  * the 2-of-3 consensus rules engine, Merkle batching, on-chain anchoring and the MQTT
  * fan-out that drives the twins dashboard.
- * Remaining: S1-11 recall subtree, S1-12 EPCIS, S1-13 Amoy.
+ * Anchors to the local chain and mirrors to Polygon Amoy, the public verification target.
  */
 
 import {
@@ -30,6 +30,7 @@ import {
   type Finding,
   type Hex,
   type NodeRoleValue,
+  type PublicAnchorRef,
   type RelayInfo,
   type SensorRecord,
 } from "@krishichain/core";
@@ -299,10 +300,48 @@ const batcher = new MerkleBatcher({
   },
 });
 
-const isAnchored = (digest: Hex): boolean => proofs.has(digest.toLowerCase());
+/**
+ * Has this record's commitment actually LANDED on a chain?
+ *
+ * Not "is it in a closed Merkle batch" — that was the old meaning and it was a lie by
+ * omission. A closed batch is a promise the gateway made to itself; until the anchor
+ * transaction confirms, nothing outside this process has committed to anything, and a
+ * transaction that later fails would have left the badge reading VERIFIED forever
+ * (CLAUDE.md invariant 5).
+ *
+ * Consequence worth knowing: with no chain configured, nothing ever reaches VERIFIED and
+ * every lot sits at PENDING_ANCHOR. That is the honest answer, not a regression.
+ */
+const isAnchored = (digest: Hex): boolean => {
+  const batch = proofs.get(digest.toLowerCase());
+  if (!batch || !anchorService) return false;
+  return anchorService.anchorFor(batch.index)?.status === "ANCHORED";
+};
+
+/** The public-chain commitment for a record, when a public mirror is configured. */
+const publicAnchorFor = (digest: Hex): PublicAnchorRef | undefined => {
+  if (!amoyAnchor || !amoyDeployment) return undefined;
+  const batch = proofs.get(digest.toLowerCase());
+  if (!batch) return undefined;
+
+  const record = amoyAnchor.anchorFor(batch.index);
+  const ref: PublicAnchorRef = {
+    chainId: amoyDeployment.chainId,
+    // No record yet means we have not submitted it to the public chain, which is PENDING
+    // rather than absent — the mirror is configured, so the commitment is owed.
+    status: record?.status ?? "PENDING",
+    contract: amoyDeployment.contracts.BatchAnchor as Hex,
+  };
+  if (record?.txHash) {
+    ref.txHash = record.txHash as Hex;
+    ref.explorerUrl = `https://amoy.polygonscan.com/tx/${record.txHash}`;
+  }
+  if (record?.blockNumber) ref.blockNumber = record.blockNumber;
+  return ref;
+};
 
 function publishLot(lot: Hex): void {
-  publisher.lot(store.lotState(lot, isAnchored));
+  publisher.lot(store.lotState(lot, isAnchored, publicAnchorFor));
 }
 
 /**
@@ -634,7 +673,7 @@ app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => 
   const records = store.recordsForLot(lotId);
   if (records.length === 0) return reply.code(404).send({ error: "unknown lot" });
 
-  const state = store.lotState(lotId, isAnchored);
+  const state = store.lotState(lotId, isAnchored, publicAnchorFor);
 
   return {
     lotId,
@@ -669,7 +708,7 @@ app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => 
 
 /** Every lot we know about. The ops dashboard's index and the demo's lot picker. */
 app.get("/lots", async () => ({
-  lots: store.lots().map((lot) => store.lotState(lot as Hex, isAnchored)),
+  lots: store.lots().map((lot) => store.lotState(lot as Hex, isAnchored, publicAnchorFor)),
 }));
 
 /**
@@ -743,7 +782,7 @@ function summarise(lot: Hex): {
   firstSeen: string | null;
   lastSeen: string | null;
 } {
-  const state = store.lotState(lot, isAnchored);
+  const state = store.lotState(lot, isAnchored, publicAnchorFor);
   const records = store.recordsForLot(lot);
   const incidents = store.incidents.filter((i) => i.lot?.toLowerCase() === lot.toLowerCase());
   return {
@@ -823,6 +862,15 @@ app.get<{ Params: { digest: string } }>("/proof/:digest", async (request, reply)
 
   const anchored = anchorService?.anchorFor(batch.index);
 
+  const local = {
+    status: anchored?.status ?? "PENDING",
+    chainId: deployment?.chainId ?? null,
+    contract: deployment?.contracts.BatchAnchor ?? null,
+    txHash: anchored?.txHash ?? null,
+    blockNumber: anchored?.blockNumber ?? null,
+    rpcUrl: RPC_URL,
+  };
+
   return {
     digest: entry.digest,
     root: entry.root,
@@ -830,18 +878,24 @@ app.get<{ Params: { digest: string } }>("/proof/:digest", async (request, reply)
     index: entry.index,
     leafCount: entry.leafCount,
     anchorIndex: batch.index,
-    // Everything the browser needs to read the root from a public RPC and check our work
-    // without asking us anything (PROTOCOL.md §4.1). If `status` is not ANCHORED the page
-    // must say PENDING ANCHOR rather than implying a commitment that does not exist yet.
-    anchor: anchored
-      ? {
-          status: anchored.status,
-          chainId: deployment?.chainId ?? null,
-          contract: deployment?.contracts.BatchAnchor ?? null,
-          txHash: anchored.txHash ?? null,
-          blockNumber: anchored.blockNumber ?? null,
-        }
-      : { status: "PENDING", chainId: deployment?.chainId ?? null, contract: deployment?.contracts.BatchAnchor ?? null, txHash: null, blockNumber: null },
+
+    // Everything the browser needs to read the root from a chain and check our work without
+    // asking us anything (PROTOCOL.md §4.1).
+    //
+    // The proof itself is identical on both chains — same leaves, same tree, same batch
+    // index. Only the root's LOCATION differs. Verify against `public` when it is ANCHORED,
+    // because a root on a chain we do not control is the only version of this claim that
+    // means anything to a stranger; fall back to `local` when the public chain is
+    // unreachable, which is what makes the offline demo honest rather than a downgrade we
+    // hide. If neither is ANCHORED the page must say PENDING ANCHOR and must NOT imply a
+    // commitment that does not exist yet.
+    anchors: {
+      local,
+      public: publicAnchorFor(entry.digest) ?? null,
+    },
+
+    /** @deprecated Use `anchors.local`. Kept so existing callers do not break. */
+    anchor: local,
   };
 });
 

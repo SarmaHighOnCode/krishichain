@@ -130,6 +130,46 @@ said otherwise.
 
 ---
 
+## Anchoring: two chains, two different questions
+
+Every batch is anchored **twice**, and the two answer different questions:
+
+| | Question it answers | Speed | Drives |
+|---|---|---|---|
+| **Local** (Hardhat, 31337) | "Can we vouch for this?" | Instant | The `badge` |
+| **Amoy** (Polygon testnet, 80002) | "Can a stranger check it without us?" | Seconds to a minute | `publicAnchor` |
+
+Amoy is the **verification target** — a root on a chain we do not control is the only
+version of this claim that means anything to a judge. Local is the **offline fallback** that
+keeps the demo alive when the venue WiFi is hostile (invariant 6).
+
+**`VERIFIED` means the local anchor transaction has CONFIRMED** — not that a Merkle batch
+closed. Those are different claims and only the first is worth anything; a closed batch is a
+promise the gateway made to itself. With no chain configured nothing reaches `VERIFIED` and
+lots sit at `PENDING_ANCHOR`, which is the honest answer rather than a bug.
+
+The public status rides separately on `LotStateEvent.publicAnchor`, so a slow testnet never
+drags the badge backwards:
+
+```ts
+publicAnchor?: {
+  chainId: number;
+  status: "PENDING" | "ANCHORED" | "FAILED";
+  contract?: Hex; txHash?: Hex; blockNumber?: string;
+  explorerUrl?: string;   // ready to put in front of a judge
+}
+```
+
+Absent `publicAnchor` means no mirror is configured. **Render that as "local only", never as
+a failure** — it is a normal setup.
+
+`GET /proof/:digest` returns `anchors: { local, public }`. The proof is identical on both
+chains — same leaves, same tree, same batch index; only the root's *location* differs. So:
+verify against `anchors.public` when it is `ANCHORED`, fall back to `anchors.local` when the
+public chain is unreachable, and show `PENDING ANCHOR` when neither has landed. A lot is only
+as committed as its least-committed record, so one pending record holds the whole lot at
+pending rather than letting a majority round it up.
+
 ## Badges
 
 Use `badgeFor()` from core rather than reimplementing the precedence.
