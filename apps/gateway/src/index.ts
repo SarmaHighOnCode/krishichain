@@ -706,15 +706,38 @@ app.get("/lots", async () => ({
  * lets the minimal node-cam prove WiFi + camera + HTTP end to end: it POSTs the raw
  * JPEG bytes, we hash them server-side and return the digest the companion WOULD carry.
  * No signature check, no store write, nothing anchored — just the hash, for the demo.
+ *
+ * Lid verdict (bench-tuned on H2-04: sealed box reads mean <15, open room light >80,
+ * threshold 40): we decode the JPEG here, take the mean luma, and report shut vs OPEN.
+ * Done server-side so the ESP stays dumb — no image math on the constrained board.
  */
+const LID_MEAN_THRESHOLD = Number(process.env.CAM_LID_THRESHOLD ?? 40);
 app.post("/cam/photo", async (request, reply) => {
   const body = request.body as { bytes?: number[]; seq?: number; dev?: string } | undefined;
   if (!body?.bytes || !Array.isArray(body.bytes) || body.bytes.length === 0) {
     return reply.code(400).send({ error: "expected { bytes: number[], seq?: number, dev?: string }" });
   }
-  const digest = keccak256(new Uint8Array(body.bytes));
-  app.log.info({ bytes: body.bytes.length, seq: body.seq ?? null, dev: body.dev ?? null, digest }, "cam photo received");
-  return { ok: true, bytes: body.bytes.length, digest };
+  const bytes = new Uint8Array(body.bytes);
+  const digest = keccak256(bytes);
+  let mean: number | null = null;
+  let lid: "shut" | "OPEN" | "unknown" = "unknown";
+  try {
+    const { decode } = await import("jpeg-js");
+    const img = decode(bytes, { useTArray: true });
+    const data = img.data as Uint8Array;
+    let acc = 0;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 64) {
+      acc += 0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!;
+      n++;
+    }
+    mean = n === 0 ? 0 : Math.round(acc / n);
+    lid = mean > LID_MEAN_THRESHOLD ? "OPEN" : "shut";
+  } catch {
+    // Not a decodable JPEG (truncated frame, wrong bytes) — digest still returned.
+  }
+  app.log.info({ bytes: bytes.length, seq: body.seq ?? null, dev: body.dev ?? null, digest, mean, lid }, "cam photo received");
+  return { ok: true, bytes: bytes.length, digest, mean, lid };
 });
 
 /**
