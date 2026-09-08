@@ -67,3 +67,5 @@ test-results/
 
 # next.js
 next-env.d.ts
+/.claude/skills/lavish
+/.lavish
