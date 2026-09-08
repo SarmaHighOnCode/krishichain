@@ -222,7 +222,10 @@ void loop() {
 
   if (ack_for_us) {
     ack_for_us = false;
-    buffer.releaseThrough(last_ack_seq);
+    // releaseThrough is per-device (a HEAD relays for many devices and must say which
+    // one); a LEAF only ever releases its own records, and its own address is already
+    // fetched above for the heartbeat-ack comparison.
+    buffer.releaseThrough(identity.address(), last_ack_seq);
   }
 
   uint32_t interval = leaf_link.sampleIntervalMs();
