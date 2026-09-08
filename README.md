@@ -131,7 +131,7 @@ the offline demo chain.
 
 | Role | Track | Owns |
 |---|---|---|
-| **H1** (Jaideep) | Hardware | Firmware, device identity, crypto, offline buffer, uplink |
+| **H1**  | Hardware | Firmware, device identity, crypto, offline buffer, uplink |
 | **H2** | Hardware | Sensors, power, enclosure, tamper rig, calibration, demo props |
 | **S1** | Software | Contracts, gateway, Merkle/anchor pipeline, `packages/core` |
 | **S2** | Software | Consumer verify UI, ops dashboard, QR/labels, pitch assets |
