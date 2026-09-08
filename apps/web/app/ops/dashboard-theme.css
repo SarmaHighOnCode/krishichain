@@ -1,0 +1,231 @@
+/*
+ * S2-12 — Stripe-inspired dashboard shell theme, per stripe/DESIGN.md.
+ *
+ * Namespaced on `.dash-shell` (never `:root`/`body`) so none of this leaks onto `/` or
+ * `/verify/*`, which stay on the Cohere-inspired system from globals.css (S2-01). The
+ * `--status-*` badge tokens and `.badge` classes from globals.css are reused as-is here —
+ * only chrome/layout is new, not semantic color.
+ */
+
+.dash-shell {
+  --dash-primary: #533afd;
+  --dash-primary-deep: #4434d4;
+  --dash-primary-press: #2e2b8c;
+  --dash-primary-soft: #665efd;
+  --dash-primary-subdued: #b9b9f9;
+  --dash-navy: #0d253d;
+  --dash-navy-900: #1c1e54;
+  --dash-ink-secondary: #273951;
+  --dash-ink-mute: #64748d;
+  --dash-canvas: #ffffff;
+  --dash-canvas-soft: #f6f9fc;
+  --dash-hairline: #e3e8ee;
+  --dash-hairline-input: #a8c3de;
+  --dash-radius-sm: 6px;
+  --dash-radius-md: 8px;
+  --dash-radius-lg: 12px;
+  --dash-radius-xl: 16px;
+  --dash-radius-pill: 9999px;
+  --dash-shadow-1: 0 1px 3px rgba(0, 55, 112, 0.08);
+  --dash-shadow-2: 0 8px 24px rgba(0, 55, 112, 0.08), 0 2px 6px rgba(0, 55, 112, 0.04);
+
+  display: flex;
+  min-height: 100vh;
+  background: var(--dash-canvas-soft);
+  color: var(--dash-navy);
+  font-family: var(--font-body);
+}
+
+.dash-shell * {
+  box-sizing: border-box;
+}
+
+/* --- sidebar --- */
+
+.dash-sidebar {
+  width: 240px;
+  flex: 0 0 240px;
+  background: var(--dash-canvas);
+  border-right: 1px solid var(--dash-hairline);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.dash-sidebar__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-sidebar__wordmark {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  color: var(--dash-navy);
+}
+
+.dash-sidebar__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dash-ink-mute);
+}
+
+.dash-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-nav__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--dash-radius-md);
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--dash-ink-secondary);
+  text-decoration: none;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.dash-nav__link:hover {
+  background: var(--dash-canvas-soft);
+  color: var(--dash-navy);
+}
+
+.dash-nav__link--active {
+  background: var(--dash-primary-subdued);
+  color: var(--dash-primary-deep);
+  font-weight: 500;
+}
+
+.dash-nav__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--dash-radius-pill);
+  background: currentColor;
+  opacity: 0;
+  flex: 0 0 auto;
+}
+
+.dash-nav__link--active .dash-nav__dot {
+  opacity: 1;
+  background: var(--dash-primary);
+}
+
+.dash-sidebar__section {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--dash-hairline);
+}
+
+/* --- main column --- */
+
+.dash-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-topbar {
+  height: 56px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  background: var(--dash-canvas);
+  border-bottom: 1px solid var(--dash-hairline);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.dash-topbar__crumb {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dash-ink-mute);
+}
+
+.dash-content {
+  flex: 1 1 auto;
+  padding: 40px 48px 64px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* --- responsive: collapse sidebar to a top strip below ~900px --- */
+
+@media (max-width: 900px) {
+  .dash-shell {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .dash-sidebar {
+    width: 100%;
+    flex: 0 0 auto;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    overflow-x: auto;
+  }
+
+  .dash-sidebar__section {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .dash-nav {
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .dash-content {
+    padding: 24px 20px 48px;
+  }
+}
+
+/* --- print: /ops/labels prints a clean label sheet with no dashboard chrome --- */
+
+@media print {
+  .dash-sidebar,
+  .dash-topbar {
+    display: none !important;
+  }
+
+  .dash-shell {
+    display: block;
+    min-height: 0;
+    background: none;
+  }
+
+  .dash-main {
+    display: block;
+  }
+
+  .dash-content {
+    padding: 0;
+    margin: 0;
+    max-width: none;
+    width: auto;
+  }
+}

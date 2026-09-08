@@ -56,22 +56,12 @@ function StatCard({
       ? "var(--status-unverifiable)"
       : emphasis === "flagged"
         ? "var(--status-flagged)"
-        : "var(--color-ink)";
+        : "var(--dash-navy)";
 
   return (
-    <div className="card ops-stat-card">
-      <p className="eyebrow" style={{ marginBottom: "var(--space-xs)" }}>
-        {label}
-      </p>
-      <p
-        style={{
-          margin: 0,
-          fontFamily: "var(--font-display)",
-          fontSize: "2rem",
-          lineHeight: 1.1,
-          color: valueColor,
-        }}
-      >
+    <div className="dash-stat-card">
+      <p className="dash-stat-card__label">{label}</p>
+      <p className="dash-stat-card__value" style={{ color: valueColor }}>
         {value}
       </p>
       {emphasis && (
@@ -91,12 +81,10 @@ function StatCard({
  */
 function NodeHealthTable({ nodes }: { nodes: NodeHealth[] }) {
   return (
-    <div className="card">
-      <p className="eyebrow" style={{ marginBottom: "var(--space-sm)" }}>
-        Node health
-      </p>
+    <div className="dash-panel">
+      <p className="dash-panel__title">Node health</p>
       {nodes.length === 0 ? (
-        <p className="muted" style={{ marginBottom: 0 }}>
+        <p className="muted dash-panel__empty">
           Per-device last-seen and buffer depth aren&apos;t available yet — the gateway only
           exposes aggregate counts via <code>GET /ops/summary</code>. This table is wired up to
           render real rows as soon as a <code>GET /ops/nodes</code>-style endpoint (per-device{" "}
@@ -104,26 +92,24 @@ function NodeHealthTable({ nodes }: { nodes: NodeHealth[] }) {
           empty rather than showing fabricated devices.
         </p>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="dash-table">
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--color-hairline)" }}>
-              <th style={{ padding: "var(--space-sm) 0" }}>Device</th>
-              <th style={{ padding: "var(--space-sm) 0" }}>Last seen</th>
-              <th style={{ padding: "var(--space-sm) 0" }}>Buffer depth</th>
-              <th style={{ padding: "var(--space-sm) 0" }}>Status</th>
+            <tr>
+              <th>Device</th>
+              <th>Last seen</th>
+              <th>Buffer depth</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {nodes.map((node) => (
-              <tr key={node.address} style={{ borderBottom: "1px solid var(--color-card-border)" }}>
-                <td style={{ padding: "var(--space-sm) 0" }}>
+              <tr key={node.address}>
+                <td>
                   <code>{node.address}</code>
                 </td>
-                <td style={{ padding: "var(--space-sm) 0" }}>
-                  {new Date(node.lastSeen).toLocaleTimeString()}
-                </td>
-                <td style={{ padding: "var(--space-sm) 0" }}>{node.bufferDepth}</td>
-                <td style={{ padding: "var(--space-sm) 0" }}>
+                <td>{new Date(node.lastSeen).toLocaleTimeString()}</td>
+                <td className="dash-table__tnum">{node.bufferDepth}</td>
+                <td>
                   <span
                     className={`badge ${
                       node.status === "online"
@@ -205,7 +191,7 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
       </div>
 
       {summary === null ? (
-        <div className="card">
+        <div className="dash-panel">
           <p className="muted" style={{ marginBottom: 0 }}>
             Gateway unreachable. Is it running? Try <code>npm run dev:gateway</code>. This page
             keeps retrying every {POLL_INTERVAL_MS / 1000}s.
@@ -229,14 +215,14 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
             />
           </div>
 
-          <div className="card">
-            <p className="eyebrow" style={{ marginBottom: "var(--space-sm)" }}>
-              Last anchored root
-            </p>
+          <div className="dash-root-panel">
+            <p className="dash-root-panel__title">Last anchored root</p>
             {summary.lastRoot === ZERO_ROOT ? (
               <span className="badge badge--pending">none anchored yet</span>
             ) : (
-              <code title={summary.lastRoot}>{truncateRoot(summary.lastRoot)}</code>
+              <code className="dash-root-panel__value" title={summary.lastRoot}>
+                {truncateRoot(summary.lastRoot)}
+              </code>
             )}
           </div>
         </>
@@ -248,19 +234,135 @@ export function OpsDashboard({ initialSummary }: { initialSummary: OpsSummary | 
         .ops-status-line {
           display: flex;
           align-items: center;
+          justify-content: flex-end;
           gap: var(--space-md);
           margin-bottom: var(--space-lg);
         }
 
         .ops-stat-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-          gap: var(--space-lg);
-          margin: var(--space-lg) 0;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 24px;
+          margin: 0 0 24px;
         }
 
-        .ops-stat-card {
+        .dash-stat-card {
+          background: var(--dash-canvas);
+          border: 1px solid var(--dash-hairline);
+          border-radius: var(--dash-radius-lg);
+          padding: 20px 24px;
+          box-shadow: var(--dash-shadow-1);
+          transition: box-shadow 0.15s ease;
+        }
+
+        .dash-stat-card:hover {
+          box-shadow: var(--dash-shadow-2);
+        }
+
+        .dash-stat-card__label {
+          margin: 0 0 8px;
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--dash-ink-mute);
+        }
+
+        .dash-stat-card__value {
           margin: 0;
+          font-family: var(--font-display);
+          font-weight: 300;
+          font-size: 2.25rem;
+          line-height: 1.1;
+          letter-spacing: -0.02em;
+          font-feature-settings: "tnum";
+        }
+
+        .dash-panel {
+          background: var(--dash-canvas);
+          border: 1px solid var(--dash-hairline);
+          border-radius: var(--dash-radius-lg);
+          box-shadow: var(--dash-shadow-1);
+          padding: 24px;
+          margin-bottom: 24px;
+        }
+
+        .dash-panel__title {
+          margin: 0 0 12px;
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--dash-ink-mute);
+        }
+
+        .dash-panel__empty {
+          margin-bottom: 0;
+        }
+
+        .dash-root-panel {
+          background: var(--dash-navy-900);
+          color: var(--dash-canvas);
+          border-radius: var(--dash-radius-xl);
+          box-shadow: var(--dash-shadow-2);
+          padding: 24px;
+          margin-bottom: 24px;
+        }
+
+        .dash-root-panel__title {
+          margin: 0 0 12px;
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--dash-primary-subdued);
+        }
+
+        .dash-root-panel__value {
+          font-family: var(--font-mono);
+          font-size: 1rem;
+          font-feature-settings: "tnum";
+          color: var(--dash-canvas);
+          background: transparent;
+          padding: 0;
+        }
+
+        .dash-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
+        .dash-table thead tr {
+          text-align: left;
+          border-bottom: 1px solid var(--dash-hairline);
+        }
+
+        .dash-table th {
+          padding: 8px 12px;
+          font-family: var(--font-mono);
+          font-size: 0.72rem;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--dash-ink-mute);
+          font-weight: 400;
+        }
+
+        .dash-table td {
+          padding: 12px;
+          border-bottom: 1px solid var(--dash-hairline);
+          font-size: 0.9rem;
+        }
+
+        .dash-table__tnum {
+          font-feature-settings: "tnum";
+        }
+
+        .dash-table tbody tr:hover {
+          background: var(--dash-canvas-soft);
+        }
+
+        .dash-table tbody tr:last-child td {
+          border-bottom: none;
         }
       `}</style>
     </>

@@ -143,7 +143,7 @@ export default function LabelsPage() {
   const canPrint = entries.length > 0 && baseUrl.length > 0;
 
   return (
-    <main className="labels-page-main">
+    <div className="labels-page-main">
       <div className="label-controls">
         <h1>Crate label sheet</h1>
         <p className="muted">
@@ -246,10 +246,6 @@ export default function LabelsPage() {
       )}
 
       <style>{`
-        .labels-page-main {
-          max-width: 64rem;
-        }
-
         .label-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -354,6 +350,6 @@ export default function LabelsPage() {
           }
         }
       `}</style>
-    </main>
+    </div>
   );
 }
