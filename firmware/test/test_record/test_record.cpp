@@ -126,6 +126,12 @@ void test_decode_refuses_a_wrong_length() {
   TEST_ASSERT_FALSE(krishi::decodeRecord(bytes, kCanonicalLength - 1, out));
 }
 
+// Unity calls these around every test and links against them unconditionally. There is no
+// per-test state to manage here, but the symbols must exist or the link fails with
+// "undefined reference to `setUp'". `extern "C"` because Unity is C and this file is C++.
+extern "C" void setUp(void) {}
+extern "C" void tearDown(void) {}
+
 int main(int, char**) {
   UNITY_BEGIN();
   loadVectors();
