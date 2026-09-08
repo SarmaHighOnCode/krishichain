@@ -37,7 +37,7 @@ firmware/          ESP32, PlatformIO, C++17   — owner H1
   lib/krishi/      identity, record, chain, ringbuffer, uplink, crypto, sensors
   node-farm/       harvest node
   node-transit/    cold-chain node
-contracts/         Solidity 0.8.28, Hardhat 3 + viem   — owner S1
+contracts/         Solidity 0.8.28, Hardhat 2.22 + viem   — owner S1
 apps/gateway/      Fastify + TS + SQLite               — owner S1
 apps/web/          Next.js 15 App Router + Tailwind    — owner S2
 packages/core/     canonical encoding, merkle, verify, EPCIS  — owner S1

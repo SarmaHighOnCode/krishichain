@@ -7,7 +7,7 @@
 A node sampling every 30 s produces ~2,880 records/day. A three-day crate journey is ~8,640
 records. The naive design writes each reading to a smart contract.
 
-At ~30 gwei on Polygon, one storage write costs roughly ₹0.03. That is **≈ ₹260 per crate** — far
+At ~30 gwei on Polygon, one such write costs roughly ₹0.028. That is **≈ ₹240 per crate** — far
 above the margin on the crate itself, and it permanently publishes farm-level telemetry that is
 commercially sensitive to the farmer.
 
@@ -23,8 +23,8 @@ seconds**, whichever comes first. Anchors themselves chain via `prevRoot`.
 ## Consequences
 
 **Good**
-- Cost per traced record falls to ≈ ₹0.0001; a full crate journey costs about ₹1, under 0.1% of
-  goods value.
+- Cost per traced record falls to ≈ ₹0.00018; a full crate journey costs about ₹1.5, under 0.2%
+  of goods value. (Measured: `anchor()` = 74,775 gas.)
 - Anchoring is O(1) in leaf count, so chain cost is independent of node count or sampling rate.
 - **Selective disclosure** comes free: a farmer can prove one crate's cold chain to a buyer
   without publishing the rest of the farm's telemetry.
@@ -40,7 +40,7 @@ seconds**, whichever comes first. Anchors themselves chain via `prevRoot`.
 
 ## Alternatives rejected
 
-- **Every reading on-chain** — ₹260/crate, and it leaks commercial data.
+- **Every reading on-chain** — ₹240/crate, and it leaks commercial data.
 - **IPFS for raw records** — a pinning dependency and a live demo failure mode, for integrity we
   already get from digests.
 - **One anchor per lot at the end of the journey** — cheapest of all, but a breach would only

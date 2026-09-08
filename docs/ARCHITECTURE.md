@@ -156,7 +156,7 @@ and to Amoy asynchronously (credibility path). Amoy failure degrades the badge t
 
 ### 2.4 Contracts (`contracts/`)
 
-Hardhat 3 + viem + Solidity 0.8.28 + OpenZeppelin. Hardhat over Foundry purely because the team
+Hardhat 2.22 + viem + Solidity 0.8.28 + OpenZeppelin (`evmVersion: cancun`, required by OZ 5.x). Hardhat over Foundry purely because the team
 already has Node and npm and nothing else — one `npm install` and the whole chain stack works on
 Windows. See [ADR-0002](adr/0002-hardhat-over-foundry.md).
 
@@ -165,14 +165,16 @@ Windows. See [ADR-0002](adr/0002-hardhat-over-foundry.md).
 | `ActorRegistry` | `address → {role, name, active}` | `registerActor`, `revokeActor`, `hasRole` |
 | `DeviceRegistry` | `address → {owner, class, commissionedAt, revokedAt, metaHash}` | `registerDevice`, `revokeDevice`, `isActiveAt(dev, blockNo)` |
 | `LotRegistry` | `lotId → {creator, custodian, state, parent, children[], flags[]}` | `createLot`, `aggregate`, `transferCustody`, `flagLot`, `finalize` |
-| `BatchAnchor` | `index → {root, leafCount, prevRoot, ts}` | `anchor`, `getAnchor`, `verifyProof` |
+| `BatchAnchor` | `index → root` (leafCount + ts live in the event) | `anchor`, `getRoot`, `verifyInclusion` |
 
 `isActiveAt(dev, blockNo)` rather than a boolean `isActive`: revocation must be **block-scoped**,
 so records signed before a key leak stay valid and records after it do not. A plain boolean would
 either invalidate a device's entire history or none of it, and both are wrong.
 
-Gas notes: `anchor` writes one struct (3 slots) and emits one event — ~48k gas, and it is O(1)
-regardless of how many records the root commits to.
+Gas notes: `anchor` writes **one** storage slot (the root) and puts `leafCount` and the
+timestamp in the event instead — neither is needed to verify a proof. Measured at **74,775
+gas**, down from 96,818 with the metadata in storage, and it is O(1) regardless of how many
+records the root commits to.
 
 ### 2.5 Web (`apps/web`)
 

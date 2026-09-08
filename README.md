@@ -76,7 +76,7 @@ flowchart LR
 | `firmware/node-farm/` | ESP32 harvest/commissioning node (PlatformIO) | H1 |
 | `firmware/node-transit/` | ESP32 cold-chain/tamper node (PlatformIO) | H1 |
 | `firmware/lib/krishi/` | Shared C++ lib: identity, signing, hash chain, ring buffer | H1 |
-| `contracts/` | Solidity (Hardhat 3 + viem) | S1 |
+| `contracts/` | Solidity (Hardhat + viem) | S1 |
 | `apps/gateway/` | Fastify ingest, verification, Merkle batcher, anchor service | S1 |
 | `apps/web/` | Next.js consumer verify + ops dashboard | S2 |
 | `packages/core/` | Canonical encoding, Merkle, signature verify, EPCIS types | S1 |

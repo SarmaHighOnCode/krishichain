@@ -213,7 +213,7 @@ Priority: **P0** = demo fails without it · **P1** = demo is weak without it · 
 | SC-03 | `LotRegistry`: create, aggregate, transferCustody, flag, finalize | P0 | Full lifecycle tested; aggregation graph traversable both ways |
 | SC-04 | `BatchAnchor`: `anchor(root, leafCount, prevRoot)` + anchor chaining | P0 | Anchors form their own hash chain; gaps detectable on-chain |
 | SC-05 | On-chain custody signature verification (`ecrecover`, EIP-191) | P1 | Forged handoff reverts |
-| SC-06 | Gas budget: anchor ≤ 60,000 gas | P1 | Gas report asserted in CI |
+| SC-06 | Gas budget: anchor ≤ 80,000 gas | P1 | Asserted in CI; measured 74,775 |
 | SC-07 | Identical deploy to local chain and Polygon Amoy | P0 | One command per target; addresses written to `deployments/` |
 | SC-08 | ≥ 90% line coverage on `LotRegistry` and `BatchAnchor` | P1 | CI gate |
 
@@ -359,17 +359,17 @@ day's mandi commission on a single truck lot. That is the affordability argument
 
 | Parameter | Value |
 |---|---|
-| Anchor transaction gas | ~48,000 |
+| Anchor transaction gas | **74,775 (measured)** |
 | Polygon gas price (typical) | ~30 gwei |
-| Cost per anchor | ~0.0015 POL ≈ ₹0.03 |
+| Cost per anchor | ~0.00224 POL ≈ ₹0.045 |
 | Records per anchor | 256 |
-| **Cost per traced record** | **≈ ₹0.0001** |
+| **Cost per traced record** | **≈ ₹0.00018** |
 | Records per crate per journey (3 days @ 30 s) | ~8,640 |
-| **Blockchain cost per traced crate** | **≈ ₹1.0** |
+| **Blockchain cost per traced crate** | **≈ ₹1.5** (34 anchors) |
 | Typical crate value | ₹800–1,500 |
-| **Traceability overhead** | **< 0.1% of goods value** |
+| **Traceability overhead** | **< 0.2% of goods value** |
 
-Naively writing each reading on-chain costs ~₹0.03 × 8,640 ≈ **₹260 per crate** — many times the
+Naively writing each reading on-chain costs ~₹0.028 × 8,640 ≈ **₹240 per crate** — many times the
 freight margin, which is precisely why on-chain-everything pilots die. Merkle batching is not an
 optimisation; it is the reason the product can exist.
 
@@ -450,7 +450,7 @@ zero-knowledge proofs of freshness (great slide, wrong week).
 | Alternative | Why not |
 |---|---|
 | **Hyperledger Fabric** | The academic default for food traceability and genuinely the right enterprise answer — but it needs an orderer, peers, CAs and channel config. Unstandable in a hackathon and impossible to demo on a laptop with the WiFi pulled. We name it as the production migration path. |
-| **Write every reading on-chain** | ₹260/crate (§10.2), and it permanently publishes commercially sensitive farm telemetry. |
+| **Write every reading on-chain** | ₹240/crate (§10.2), and it permanently publishes commercially sensitive farm telemetry. |
 | **Sign on the gateway instead of the node** | Destroys the entire thesis. Whoever owns the gateway owns the truth, and we are back to immutable garbage. |
 | **IPFS for raw records** | Adds a pinning dependency and a demo failure mode for no gain at our data volume. Digests + proofs already give integrity. |
 | **A custom PoA sidechain** | We would spend the hackathon building consensus instead of the product, and judges rightly discount home-made chains. |

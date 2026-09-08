@@ -78,9 +78,9 @@ projector, breach tool (USB fan / hand warmer) within reach, backup board in you
 
 ## 4:15–5:00 · Cost and close
 
-- One slide: **₹750 per node. ₹1 of blockchain cost per crate journey. Under 0.1% of goods value.**
+- One slide: **₹750 per node. ₹1.50 of blockchain cost per crate journey. Under 0.2% of goods value.**
 
-> "Writing every reading on-chain would cost ₹260 a crate — that's why those pilots die. We
+> "Writing every reading on-chain would cost about ₹240 a crate — that's why those pilots die. We
 > Merkle-batch 256 readings into one transaction. Same guarantee, a thousandth of the cost.
 >
 > Two ESP32s, four contracts, and a trust boundary in the right place."
@@ -107,5 +107,5 @@ broken demo scores better than a flawless run.
 If you get cut short, this is the whole pitch:
 
 > "Sensor nodes that sign their own data with a key that never leaves the chip, hash-chained so
-> nothing can be dropped even offline, Merkle-batched so a crate costs ₹1 to trace instead of
-> ₹260, and verifiable in the consumer's own browser without trusting our servers. ₹750 a node."
+> nothing can be dropped even offline, Merkle-batched so a crate costs ₹1.50 to trace instead of
+> ₹240, and verifiable in the consumer's own browser without trusting our servers. ₹750 a node."

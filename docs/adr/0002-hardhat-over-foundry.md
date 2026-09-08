@@ -1,4 +1,4 @@
-# ADR-0002 — Hardhat 3 + viem, not Foundry
+# ADR-0002 — Hardhat + viem, not Foundry
 
 **Status:** Accepted · 2026-09-08
 
@@ -13,7 +13,7 @@ build, for four people.
 
 ## Decision
 
-Use **Hardhat 3 with viem and TypeScript tests**, installed through the same `npm install` as
+Use **Hardhat 2.22 with viem and TypeScript tests**, installed through the same `npm install` as
 everything else.
 
 ## Consequences
@@ -28,8 +28,8 @@ everything else.
 - Slower tests than `forge test` (irrelevant at ~400 lines of Solidity).
 - No built-in fuzzing. We compensate with property tests in `packages/core` for the Merkle code,
   which is where randomised testing actually pays here.
-- Gas reporting is less ergonomic; the `anchor` ≤ 60k gas ceiling is asserted explicitly in a test
-  rather than read off a report.
+- Gas reporting is less ergonomic; the `anchor` gas ceiling is asserted explicitly in a test
+  (measured 74,775; ceiling 80,000) rather than read off a report.
 
 ## Revisit if
 

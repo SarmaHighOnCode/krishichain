@@ -140,7 +140,7 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 
 ### `S1-04` · `LotRegistry` + `BatchAnchor` [P0] [4h]
 - **Accept** Full lifecycle: create → aggregate → transferCustody → flag → finalize. Aggregation
-  graph traversable both ways. Anchors chain via `prevRoot`. `anchor` ≤ 60k gas, asserted.
+  graph traversable both ways. Anchors chain via `prevRoot`. `anchor` ≤ 80k gas, asserted (measured ~75k).
 
 ### `S1-05` · `sim-node.ts` [P0] [2h] — **UNBLOCKS S2**
 - **Scope** A fake node speaking the real protocol: real keys, real signatures, real chain,

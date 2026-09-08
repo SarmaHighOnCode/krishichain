@@ -1,0 +1,690 @@
+{
+  "$comment": "GOLDEN VECTORS — the contract between firmware (C++) and gateway (TypeScript). Never edit this file to make an implementation pass. See docs/PROTOCOL.md §6.",
+  "protocolVersion": 1,
+  "canonicalLength": 90,
+  "testPrivateKey": "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318",
+  "testDeviceAddress": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+  "generatedBy": "npm run gen:vectors",
+  "records": [
+    {
+      "name": "genesis",
+      "why": "seq 0 with a zero prev digest",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 0,
+        "prev": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 16,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000000000000000000000000000000000000000000000000000000000000000000000000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00001057",
+      "digest": "0xdc637f1c670546cf66785c2b44e50c29fa835af52a5528050c133e95f3fc07d8",
+      "signature": "0x03a57388bb7f9b64707d53b555fb6bf5f38f3957379c6d8bb4508310f3cf5cf374aba8b25f8dbcb12e0f70a20efafa87d9b01b4dc8fbe417785e6c87f05369f5"
+    },
+    {
+      "name": "nominal_cold_chain",
+      "why": "the ordinary case: 4.1C, 81.2%RH, in a sealed box",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 0,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00000057",
+      "digest": "0xdd0f437e35f0df2a16ba4463c6b1294fd6b332aa6cac2640da8c62f8b7933f54",
+      "signature": "0x58e0e2ce9d954719900301c5cb7478abefc9afebc2f17931cae760aa43d2d84c491f141b07f91d5df7e4079034688c229c175460866ff31787cfce363ee0d2f1"
+    },
+    {
+      "name": "negative_temperature",
+      "why": "int16 sign handling — a frozen chain at -18.5C",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": -185,
+        "h": 812,
+        "lux": 0,
+        "flags": 0,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f7ff47032c00000057",
+      "digest": "0xf6a3cbb2546692c4e800cd2bd24043a645a7fe64295a0b8766f144a3c5c7fbdd",
+      "signature": "0xcdb5408b08129ac178e2823d3134828df233ee941093bb9d4c725b49aac6899d212bb5b366cccdbb3f01f060b3aaadb76dd8fd987c2b3025bf3068aaf9e024a9"
+    },
+    {
+      "name": "temp_sensor_fault",
+      "why": "sentinel, not a fabricated reading",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": -32768,
+        "h": 812,
+        "lux": 0,
+        "flags": 4,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f78000032c00000457",
+      "digest": "0x6f783460c7f1b520c7f4d4450f588f7f3272ebd1822818e5d59e97a7274b4001",
+      "signature": "0xc7fd9cc56796d5b66660fc4c37d123571ced8fb67ca13afa61e5c574775095b67311dd3f8ec7d82f3952f851c43acfb9fba686a8fa45fbc21665eecc2fa3ece3"
+    },
+    {
+      "name": "humidity_sensor_fault",
+      "why": "uint16 sentinel",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 65535,
+        "lux": 0,
+        "flags": 4,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029ffff00000457",
+      "digest": "0x851099db3fbf9dcb0c85a7435a5b705a97debe2a48b454aadb36fb18ea42799c",
+      "signature": "0x82f9fd2f8798633e6c3c39f16b5e08cce4418d8de9ffd3eb659c6a77755b15f470d08df21b602d527f947f223d4d22163f3009a235cff64e8e818386c52f218a"
+    },
+    {
+      "name": "lid_open_tamper",
+      "why": "the tamper channel fires; lux jumps",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 340,
+        "flags": 1,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c01540157",
+      "digest": "0xc52f2358f8a01df626de47482a49996153fab3f6df8d514135a677a70ff5d91e",
+      "signature": "0x21c527a1233868d4d506df2b3412affc49de50a2405473bf6a067f8264e4d9d02b8c0bc1e7decbc82cc21b0cf83a2c53984c9bf2c4a8fc643d218a764408b3e3"
+    },
+    {
+      "name": "shock_detected",
+      "why": "MPU6050 threshold crossed",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 2,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00000257",
+      "digest": "0xe2efba9fcca5bad66804b0006ed009d84e8a8d0aa44606538a1db09fbbd427d9",
+      "signature": "0x0bf7dbe6d29767ab039b99e347113cd502924a32a86189294ecddcdb914535cf736a4755769d8c76b62eb388c8be1b87c3b83764a85b68793c2756a56191890b"
+    },
+    {
+      "name": "buffered_offline",
+      "why": "written to flash while disconnected",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 1,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 8,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297901018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00000857",
+      "digest": "0x0ae7e01d9239bdd944147d51c0e9f56fcef1b6763cff828f187b85ed84a74231",
+      "signature": "0xb4aaf681cc69f3b7a13c454a9ee5fdb35ae88d236058a26da89791e9c004e9945208c1020d195115be4e0723122fb0c5ba80ed204db6ce54271d467d270dc0b4"
+    },
+    {
+      "name": "unsynced_clock",
+      "why": "never reached NTP — the timestamp is a guess and says so",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "0",
+        "tsq": 0,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 0,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000000000000000018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00000057",
+      "digest": "0xf1212a886e5ba1daf227f259ecf61f1b06037edda4a7133e608ec9b8ab68a158",
+      "signature": "0x00658aea2e40f85eb89056cf10980a9afb395d1dafe47162bd45dfb06cb8705f21c07145a8db4c95f88d6981d38288fd79e70ee43ebfd2b0832140e539ae008d"
+    },
+    {
+      "name": "boot_after_power_cut",
+      "why": "a power cut is not a chain gap, but an auditor must see it",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 24,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00001857",
+      "digest": "0xd677392e9895c73d590d14372d30996cd000b9958490f08727dc4bdb1b11bf19",
+      "signature": "0xc2c0f00d7011f0a824850a75d07cda8e2757be0b2d51e7e58d32e35922a5b052671dd181c2e25ed6986ccbc7f4db7bb7f0e0230e2fc1df5daccc3e09c55c1f97"
+    },
+    {
+      "name": "lot_binding",
+      "why": "the record that bound the lot",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 5,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 32,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000051111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00002057",
+      "digest": "0xbffb7ef27e361e851ad75891376b36a16f09a25b4ea792e1d116b8cefd6b430c",
+      "signature": "0x6fbabb0e7c67c8a971e8732b61cd1a95c15a26fef197a28a86027662984c9bdc18fe94ab08af488cc7901505f59975858067cdbe4a812ff45900ab057c5c8abd"
+    },
+    {
+      "name": "calibration_record",
+      "why": "signed at commissioning, hashed into DeviceRegistry",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 0,
+        "prev": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 40,
+        "h": 812,
+        "lux": 0,
+        "flags": 64,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000000000000000000000000000000000000000000000000000000000000000000000000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70028032c00004057",
+      "digest": "0xdc1c3a44626014ceed9dc5ab07c88c128ff37a5d3e766c0ec744bf2ce30af4a9",
+      "signature": "0x208402f78433c5b26b3a083072a56f3612fa0807078513702472c9d38e33bb5b134b6f54d85e8d62a6540e27601d3d1e84b0b52d9312f6dcfbef59d37a935cfa"
+    },
+    {
+      "name": "unbound_lot",
+      "why": "no lot yet — all-zero lot field",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x00000000000000000000000000000000",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 0,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902000000000000000000000000000000000029032c00000057",
+      "digest": "0xed1384bbb2a46a5e7dbb2635c7d26eec834f22e217d1c9c615090f5ec8f07d5a",
+      "signature": "0x16deb7dc3e3b083bb187a2f1ae979fdb0e921ca6e62fc304135b3dffc3fd99822b826f33f44d483be4a36e57c4f72b4fddfc63090594d1a0cf55f3ad822702db"
+    },
+    {
+      "name": "mains_powered",
+      "why": "bat sentinel 0xFF",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 0,
+        "bat": 255
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c000000ff",
+      "digest": "0x6840192dab45a7da4c8a6ae6f6441abc853020d824ba0d58ad18aa65e3859669",
+      "signature": "0x1b1f042fff55d9c9378199b4a03b8ad7d835e40bf7f4d429d01e7d54588a7ca5103e3f1c6f95b67cc684f3f634f878bb951d39d2df7f3f5837c680b97845f167"
+    },
+    {
+      "name": "battery_empty",
+      "why": "bat 0 is a real value, not a sentinel",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 0,
+        "bat": 0
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00000000",
+      "digest": "0x26f4300ffd940d5e6a573d99e20eae56ee95ca02e4252381391473f5421ed21f",
+      "signature": "0xc3600e361a8371f9c2d2c7df6cdf45c67e9ba0d12474836d85435ecbec280e715d66c803dc57023a26094b6fb9373fa22fc6306263654e1ece74ea48956bcc22"
+    },
+    {
+      "name": "all_flags_set",
+      "why": "every defined flag at once; bit 7 stays clear",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 127,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00007f57",
+      "digest": "0xfba889431e9ae5d7e3aa5e4eb1112de1b64116d57c7bfefe0aec01f1f6327019",
+      "signature": "0x45b7b30cf8b8be45d2b0d0eaa497474f15a4df33cb52edb17e8f566446a869aa4b9d1a2e37f577a0a42ec094b78eff90d81b069cc2678f9c9a92fc06d4b9c814"
+    },
+    {
+      "name": "max_seq",
+      "why": "uint32 boundary",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 4294967295,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 0,
+        "flags": 0,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23ffffffff1111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032c00000057",
+      "digest": "0x973f4ef996d7bb7f16efc5e81bd3d4b9f0b85f5da35d25c87da6718c34fe5423",
+      "signature": "0x2d429ff7e7e386f5ee3c001f35b1c367700ed9c44ca8fe551fbbad9a9ca7f766422f43485387263279d57b05be889871b6502fb757165235bc561423b26bedbb"
+    },
+    {
+      "name": "max_values",
+      "why": "upper boundary of every numeric field",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 4294967294,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "4294967295",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 32767,
+        "h": 65534,
+        "lux": 65535,
+        "flags": 127,
+        "bat": 100
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23fffffffe111111111111111111111111111111111111111111111111111111111111111100000000ffffffff02018f2c9a7b3d4e5f8091a2b3c4d5e6f77ffffffeffff7f64",
+      "digest": "0xcb5ed9f37ff8c0892592e65d82eacf0683610e96d277dff72e02116353b84040",
+      "signature": "0xea258d32c7584384ed407a481dfb25cbfa858e224af3ac78fbfe78b7e400d214303a1f43c9e91a15f421dd3480927efccd9f7ec6328f893ef89eeb6fac398077"
+    },
+    {
+      "name": "min_values",
+      "why": "lower boundary of every numeric field",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 0,
+        "prev": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "ts": "0",
+        "tsq": 0,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": -32767,
+        "h": 0,
+        "lux": 0,
+        "flags": 0,
+        "bat": 0
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000018f2c9a7b3d4e5f8091a2b3c4d5e6f78001000000000000",
+      "digest": "0x67671f1fdf26b5e96f844fc9922a84d4d5a9474b87be36bd9e0b2318cdd82518",
+      "signature": "0x0613c6e53299464222d8c449f1d75de6012babb6d3a9cea3eb2a04c74d2996dd1e337dfb5a843a10aaa55c374ff4dbd8f76b0423085a2de740834fcacafd2bf7"
+    },
+    {
+      "name": "high_lux_daylight",
+      "why": "clamped ambient light in the open",
+      "record": {
+        "v": 1,
+        "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+        "seq": 1,
+        "prev": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "ts": "1789012345",
+        "tsq": 2,
+        "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+        "t": 41,
+        "h": 812,
+        "lux": 65000,
+        "flags": 1,
+        "bat": 87
+      },
+      "canonical": "0x012c7536e3605d9c16a7a3d7b1898e529396a65c23000000011111111111111111111111111111111111111111111111111111111111111111000000006aa2297902018f2c9a7b3d4e5f8091a2b3c4d5e6f70029032cfde80157",
+      "digest": "0x2163b1d40c5a731773d876d16677127aa21071cf78ad781a6c0c2b470b28be11",
+      "signature": "0x6c7e08e98502b782498fb8892d0402e1f697dcd681c8b35ce56092106e1f9a8917bc201a1ea170c8555fa0efd910f9152f6faddf2803e949a3280e151a620b85"
+    }
+  ],
+  "chain": {
+    "why": "A valid 8-record run plus the mutations a gateway must catch (PROTOCOL.md §2).",
+    "run": [
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 0,
+          "prev": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "ts": "1789012345",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 40,
+          "h": 812,
+          "lux": 0,
+          "flags": 16,
+          "bat": 87
+        },
+        "digest": "0x100db9069b769632fe00d99fc5e53f6a73bff22111f75f4e1df1d9d44ff0a2c7"
+      },
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 1,
+          "prev": "0x100db9069b769632fe00d99fc5e53f6a73bff22111f75f4e1df1d9d44ff0a2c7",
+          "ts": "1789012375",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 41,
+          "h": 812,
+          "lux": 0,
+          "flags": 0,
+          "bat": 87
+        },
+        "digest": "0x22037ab51bbb7b66390ef78b83e7be3fe9bd7e7621e7ca5686d1c7449865fa2e"
+      },
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 2,
+          "prev": "0x22037ab51bbb7b66390ef78b83e7be3fe9bd7e7621e7ca5686d1c7449865fa2e",
+          "ts": "1789012405",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 42,
+          "h": 812,
+          "lux": 0,
+          "flags": 0,
+          "bat": 87
+        },
+        "digest": "0xcb74eb0430e8019e5c4162577ccff1bcfb6dbf69858daf7e9a7329c4b792b86a"
+      },
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 3,
+          "prev": "0xcb74eb0430e8019e5c4162577ccff1bcfb6dbf69858daf7e9a7329c4b792b86a",
+          "ts": "1789012435",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 43,
+          "h": 812,
+          "lux": 0,
+          "flags": 0,
+          "bat": 87
+        },
+        "digest": "0x3bb067dab1ba743b058bd1667c5d172ac371031613fcd631984c841b43462c2f"
+      },
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 4,
+          "prev": "0x3bb067dab1ba743b058bd1667c5d172ac371031613fcd631984c841b43462c2f",
+          "ts": "1789012465",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 44,
+          "h": 812,
+          "lux": 0,
+          "flags": 0,
+          "bat": 87
+        },
+        "digest": "0xe956a1d769f407aaf94b548a73f976d9fc4bab73144bf656e7c5d1cb32cdfbc5"
+      },
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 5,
+          "prev": "0xe956a1d769f407aaf94b548a73f976d9fc4bab73144bf656e7c5d1cb32cdfbc5",
+          "ts": "1789012495",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 45,
+          "h": 812,
+          "lux": 0,
+          "flags": 0,
+          "bat": 87
+        },
+        "digest": "0x0cafb1b2c3c6f2476cd03863743616aad95a634e96b33453f0df00daa28d1ecf"
+      },
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 6,
+          "prev": "0x0cafb1b2c3c6f2476cd03863743616aad95a634e96b33453f0df00daa28d1ecf",
+          "ts": "1789012525",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 46,
+          "h": 812,
+          "lux": 0,
+          "flags": 0,
+          "bat": 87
+        },
+        "digest": "0x8b6dc3d2b975afe2c9b6d23206929ee1233019d20d048b9ec42f0e492a681b1b"
+      },
+      {
+        "record": {
+          "v": 1,
+          "dev": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23",
+          "seq": 7,
+          "prev": "0x8b6dc3d2b975afe2c9b6d23206929ee1233019d20d048b9ec42f0e492a681b1b",
+          "ts": "1789012555",
+          "tsq": 2,
+          "lot": "0x018f2c9a7b3d4e5f8091a2b3c4d5e6f7",
+          "t": 40,
+          "h": 812,
+          "lux": 0,
+          "flags": 0,
+          "bat": 87
+        },
+        "digest": "0x25a5236866098d9b40c16e50b2b9be4cf658ccf3d716d77e2a4e1aa57de28e4b"
+      }
+    ],
+    "expectations": [
+      {
+        "name": "full_run",
+        "drop": [],
+        "expect": "ACCEPT_ALL"
+      },
+      {
+        "name": "dropped_middle_record",
+        "drop": [
+          4
+        ],
+        "expect": "CHAIN_GAP"
+      },
+      {
+        "name": "reordered",
+        "swap": [
+          3,
+          5
+        ],
+        "expect": "CHAIN_FORK"
+      },
+      {
+        "name": "replayed_last",
+        "replayLast": true,
+        "expect": "DUPLICATE"
+      },
+      {
+        "name": "genesis_with_nonzero_prev",
+        "expect": "CHAIN_FORK"
+      }
+    ]
+  },
+  "merkle": {
+    "why": "Sorted-pair keccak256, OpenZeppelin MerkleProof compatible (PROTOCOL.md §4).",
+    "leaves": [
+      "0x100db9069b769632fe00d99fc5e53f6a73bff22111f75f4e1df1d9d44ff0a2c7",
+      "0x22037ab51bbb7b66390ef78b83e7be3fe9bd7e7621e7ca5686d1c7449865fa2e",
+      "0xcb74eb0430e8019e5c4162577ccff1bcfb6dbf69858daf7e9a7329c4b792b86a",
+      "0x3bb067dab1ba743b058bd1667c5d172ac371031613fcd631984c841b43462c2f",
+      "0xe956a1d769f407aaf94b548a73f976d9fc4bab73144bf656e7c5d1cb32cdfbc5",
+      "0x0cafb1b2c3c6f2476cd03863743616aad95a634e96b33453f0df00daa28d1ecf",
+      "0x8b6dc3d2b975afe2c9b6d23206929ee1233019d20d048b9ec42f0e492a681b1b",
+      "0x25a5236866098d9b40c16e50b2b9be4cf658ccf3d716d77e2a4e1aa57de28e4b"
+    ],
+    "root": "0xe8daf639504d59fe82bc80dbcd38582e4c5317346f9878b3d3bc632e8af8f979",
+    "proofs": [
+      {
+        "index": 0,
+        "digest": "0x100db9069b769632fe00d99fc5e53f6a73bff22111f75f4e1df1d9d44ff0a2c7",
+        "proof": [
+          "0x22037ab51bbb7b66390ef78b83e7be3fe9bd7e7621e7ca5686d1c7449865fa2e",
+          "0xf60e974778ed95dbce2c3fbc5c7a404066b6c92f94a7d06a3042c99d576e27c6",
+          "0x87ad627d97ce6400dd6a74cce33c11a994e226289ae55e2b82321165ae70f750"
+        ]
+      },
+      {
+        "index": 1,
+        "digest": "0x22037ab51bbb7b66390ef78b83e7be3fe9bd7e7621e7ca5686d1c7449865fa2e",
+        "proof": [
+          "0x100db9069b769632fe00d99fc5e53f6a73bff22111f75f4e1df1d9d44ff0a2c7",
+          "0xf60e974778ed95dbce2c3fbc5c7a404066b6c92f94a7d06a3042c99d576e27c6",
+          "0x87ad627d97ce6400dd6a74cce33c11a994e226289ae55e2b82321165ae70f750"
+        ]
+      },
+      {
+        "index": 2,
+        "digest": "0xcb74eb0430e8019e5c4162577ccff1bcfb6dbf69858daf7e9a7329c4b792b86a",
+        "proof": [
+          "0x3bb067dab1ba743b058bd1667c5d172ac371031613fcd631984c841b43462c2f",
+          "0x81233174481188c10e806e20de985f1a3194122586beb6b20b46593387ef65f3",
+          "0x87ad627d97ce6400dd6a74cce33c11a994e226289ae55e2b82321165ae70f750"
+        ]
+      },
+      {
+        "index": 3,
+        "digest": "0x3bb067dab1ba743b058bd1667c5d172ac371031613fcd631984c841b43462c2f",
+        "proof": [
+          "0xcb74eb0430e8019e5c4162577ccff1bcfb6dbf69858daf7e9a7329c4b792b86a",
+          "0x81233174481188c10e806e20de985f1a3194122586beb6b20b46593387ef65f3",
+          "0x87ad627d97ce6400dd6a74cce33c11a994e226289ae55e2b82321165ae70f750"
+        ]
+      },
+      {
+        "index": 4,
+        "digest": "0xe956a1d769f407aaf94b548a73f976d9fc4bab73144bf656e7c5d1cb32cdfbc5",
+        "proof": [
+          "0x0cafb1b2c3c6f2476cd03863743616aad95a634e96b33453f0df00daa28d1ecf",
+          "0x5ccb1f97e808c73eedfa38d39c024f930ebcc2deeb6e5c0f897a3faa2398d993",
+          "0x671e31b5ec1390e32aa531a7873ec6f8e59fbbf452e72d3648fdf84e67a7b048"
+        ]
+      },
+      {
+        "index": 5,
+        "digest": "0x0cafb1b2c3c6f2476cd03863743616aad95a634e96b33453f0df00daa28d1ecf",
+        "proof": [
+          "0xe956a1d769f407aaf94b548a73f976d9fc4bab73144bf656e7c5d1cb32cdfbc5",
+          "0x5ccb1f97e808c73eedfa38d39c024f930ebcc2deeb6e5c0f897a3faa2398d993",
+          "0x671e31b5ec1390e32aa531a7873ec6f8e59fbbf452e72d3648fdf84e67a7b048"
+        ]
+      },
+      {
+        "index": 6,
+        "digest": "0x8b6dc3d2b975afe2c9b6d23206929ee1233019d20d048b9ec42f0e492a681b1b",
+        "proof": [
+          "0x25a5236866098d9b40c16e50b2b9be4cf658ccf3d716d77e2a4e1aa57de28e4b",
+          "0x056b6f0df03df2fee4e6b80579aa0795780fb19ca852867f8927c2a9dedeea38",
+          "0x671e31b5ec1390e32aa531a7873ec6f8e59fbbf452e72d3648fdf84e67a7b048"
+        ]
+      },
+      {
+        "index": 7,
+        "digest": "0x25a5236866098d9b40c16e50b2b9be4cf658ccf3d716d77e2a4e1aa57de28e4b",
+        "proof": [
+          "0x8b6dc3d2b975afe2c9b6d23206929ee1233019d20d048b9ec42f0e492a681b1b",
+          "0x056b6f0df03df2fee4e6b80579aa0795780fb19ca852867f8927c2a9dedeea38",
+          "0x671e31b5ec1390e32aa531a7873ec6f8e59fbbf452e72d3648fdf84e67a7b048"
+        ]
+      }
+    ]
+  }
+}

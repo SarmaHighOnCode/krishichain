@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    name: core · gateway · contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The golden vectors are generated, not hand-written. Regenerating them here and
+      # failing on a diff catches the case where someone edits a vector to make their own
+      # implementation pass, which is the one thing PROTOCOL.md forbids outright.
+      - name: Golden vectors are reproducible
+        run: |
+          npm run gen:vectors
+          git diff --exit-code packages/core/fixtures/vectors.json
+
+      - name: Test packages/core
+        run: npm test -w @krishichain/core
+
+      - name: Test gateway
+        run: npm test -w @krishichain/gateway
+
+      - name: Compile and test contracts
+        run: npm test -w contracts
+
+  firmware:
+    name: firmware · native tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: npm ci
+      - run: npm run gen:vectors
+
+      - name: Install PlatformIO
+        run: pip install -U platformio
+
+      # Host-side conformance: the C++ canonical encoder against the same vectors the
+      # TypeScript side uses. This is the seam that eats a day if it breaks silently.
+      - name: Firmware conformance tests
+        working-directory: firmware
+        run: pio test -e native
+
+      - name: ESP32 build (transit node)
+        working-directory: firmware
+        run: pio run -e node-transit
