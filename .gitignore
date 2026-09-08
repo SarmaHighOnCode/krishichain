@@ -44,7 +44,7 @@ firmware/**/.vscode/
 *.db-journal
 *.sqlite
 *.sqlite3
-data/
+/data/
 quarantine/
 
 # logs
