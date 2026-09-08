@@ -7,6 +7,8 @@
  * `.env.example` is a whole-degree threshold (10 = 10.0C) — hence the `/10` before comparing.
  */
 
+import { Flags } from "@krishichain/core";
+
 export interface LotRecordLike {
   seq: number;
   t: number;
@@ -45,4 +47,18 @@ export function deriveIncidents(
   }
 
   return { breached: breachStart !== null, breachStart, breachEnd };
+}
+
+/**
+ * A record whose `flags` carries the `SENSOR_FAULT` bit (PROTOCOL.md §1.1). `t` and `h` are
+ * then the fault sentinels (-32768 / 65535, not real readings) — every consumer of these
+ * fields (ColdChainChart, JourneyTimeline) must check this before doing any arithmetic on
+ * `t`/`h`, or it renders sensor failure as if it were data (e.g. -3276.8C).
+ *
+ * The Android app's virtual-node feature sends exactly this for every reading (no phone has a
+ * calibrated temp/humidity sensor), so this is live data from a real feature, not a
+ * hypothetical edge case.
+ */
+export function isSensorFault(record: { flags: number }): boolean {
+  return (record.flags & Flags.SENSOR_FAULT) !== 0;
 }
