@@ -36,6 +36,10 @@
 #include "pins.h"
 #include "record.h"
 #include "ringbuffer.h"
+#include "store/flash_store.h"
+#ifndef KRISHI_NATIVE
+#include "store/esp_flash_store.h"
+#endif
 #include "swarm.h"
 #include "uplink.h"
 
@@ -43,6 +47,9 @@ namespace {
 
 krishi::Identity identity;
 krishi::Chain chain;
+#ifndef KRISHI_NATIVE
+krishi::EspFlashStore flash_store;
+#endif
 krishi::RingBuffer buffer;
 krishi::Uplink uplink;
 krishi::LeafLink leaf_link;
@@ -108,8 +115,15 @@ bool captureAndStore(uint8_t canonical[krishi::kCanonicalLength],
   uint8_t digest[krishi::kDigestLength];
   krishi::Identity::digest(canonical, krishi::kCanonicalLength, digest);
   if (!identity.sign(digest, signature)) return false;
-  if (!buffer.append(record, signature)) return false;
+  if (!buffer.append(record, signature)) {
+    Serial.println("WARN: ring buffer append failed");
+    return false;
+  }
   chain.advance(digest);
+  Serial.printf("leaf seq=%u t=%d.%dC h=%u.%u%% lux=%u flags=0x%02x mode=%s buf=%u\n", record.seq,
+                record.t / 10, abs(record.t % 10), record.h / 10, record.h % 10, record.lux,
+                record.flags, leaf_link.mode() == krishi::LeafLink::kEspNow ? "espnow" : "wifi",
+                buffer.stats().count);
   return true;
 }
 
@@ -125,9 +139,18 @@ void drainViaEspNow(const uint8_t* canonical, const uint8_t* signature) {
 }
 
 void drainViaWifi() {
-  // TODO(H1-07/08): peek up to 100, send, releaseThrough(ackSeq). Same contract
-  // as the transit node; the Uplink impl lands with H1.
-  (void)uplink;
+  if (!uplink.isOnline() || buffer.isEmpty()) return;
+  constexpr size_t kDrainMax = 8;
+  uint8_t canonicals[kDrainMax * krishi::kCanonicalLength];
+  uint8_t sigs[kDrainMax * krishi::kSignatureLength];
+  size_t count = buffer.peekCanonical(canonicals, sigs, kDrainMax);
+  if (count == 0) return;
+  krishi::Record probe;
+  if (!krishi::decodeRecord(canonicals, krishi::kCanonicalLength, probe)) return;
+  krishi::UplinkResponse resp = uplink.sendBatch(canonicals, sigs, count, probe.dev);
+  if (resp.result == krishi::UplinkResult::kOk) {
+    buffer.releaseThrough(probe.dev, resp.ackSeq);
+  }
 }
 
 }  // namespace
@@ -157,7 +180,9 @@ void setup() {
   }
 
   chain.begin();
-  buffer.begin();
+#ifndef KRISHI_NATIVE
+  buffer.begin(flash_store);
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
   WiFi.mode(WIFI_STA);
@@ -219,7 +244,9 @@ void loop() {
 
   if (ack_for_us) {
     ack_for_us = false;
-    buffer.releaseThrough(last_ack_seq);
+    uint8_t self[krishi::kAddressLength];
+    memcpy(self, identity.address(), sizeof(self));
+    buffer.releaseThrough(self, last_ack_seq);
   }
 
   uint32_t interval = leaf_link.sampleIntervalMs();
