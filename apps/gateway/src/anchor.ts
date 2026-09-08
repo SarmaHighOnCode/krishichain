@@ -48,6 +48,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import type { ClosedBatch } from "./batcher.js";
+import { TxQueue } from "./chain.js";
 
 /** Minimal ABI — only what the service calls. */
 export const BATCH_ANCHOR_ABI = [
@@ -118,6 +119,11 @@ export interface AnchorServiceOptions {
   onUpdate?: (record: AnchorRecord) => void;
   /** Milliseconds before we stop waiting on a receipt and treat the outcome as unknown. */
   timeoutMs?: number;
+  /**
+   * Shared transaction queue. The lot writer uses the same signer, and two concurrent
+   * writes from one account race for a nonce — so both must go through one queue.
+   */
+  queue?: TxQueue;
 }
 
 export class AnchorService {
@@ -126,10 +132,14 @@ export class AnchorService {
   private readonly walletClient: WalletClient;
   private readonly account: ReturnType<typeof privateKeyToAccount>;
   private chain: { id: number; name: string; nativeCurrency: { name: string; symbol: string; decimals: number }; rpcUrls: { default: { http: string[] } } };
-  /** Serialises anchoring so two batches can never race for the same `prevRoot`. */
-  private queue: Promise<void> = Promise.resolve();
+  /**
+   * Serialises anchoring so two batches can never race for the same `prevRoot`, and — when
+   * shared with the lot writer — so no two transactions from this signer race for a nonce.
+   */
+  private readonly queue: TxQueue;
 
   constructor(private readonly options: AnchorServiceOptions) {
+    this.queue = options.queue ?? new TxQueue();
     this.account = privateKeyToAccount(options.privateKey);
     this.chain = {
       id: options.chainId,
@@ -217,16 +227,7 @@ export class AnchorService {
 
   /** Queue a batch for anchoring. Resolves when this batch has been attempted. */
   async submit(batch: ClosedBatch): Promise<AnchorRecord> {
-    let resolve!: (record: AnchorRecord) => void;
-    const result = new Promise<AnchorRecord>((r) => {
-      resolve = r;
-    });
-
-    this.queue = this.queue.then(async () => {
-      resolve(await this.anchorOne(batch));
-    });
-
-    return result;
+    return this.queue.run(() => this.anchorOne(batch));
   }
 
   private async anchorOne(batch: ClosedBatch): Promise<AnchorRecord> {

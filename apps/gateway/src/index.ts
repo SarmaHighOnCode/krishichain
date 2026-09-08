@@ -20,8 +20,12 @@ import {
 import {
   COMPANION_VERSION,
   ConsensusEngine,
+  incidentToEpcisEvent,
   NodeRole,
+  recordToEpcisEvent,
+  toEpcisDocument,
   Topics,
+  ZERO_LOT,
   type CompanionAttestation,
   type Finding,
   type Hex,
@@ -38,6 +42,7 @@ import { z } from "zod";
 
 import { AnchorService, loadDeployment, type AnchorRecord } from "./anchor.js";
 import { MerkleBatcher, type ClosedBatch } from "./batcher.js";
+import { LotService, TxQueue } from "./chain.js";
 import {
   CompanionVerifier,
   MemoryDeviceDirectory,
@@ -168,16 +173,36 @@ const publisher = new SwarmPublisher(MQTT_URL, app.log);
 const NETWORK = process.env.ANCHOR_NETWORK ?? "localhost";
 const deployment = loadDeployment(NETWORK, REPO_ROOT);
 
+const RPC_URL = process.env.LOCAL_RPC_URL ?? "http://127.0.0.1:8545";
+const CHAIN_KEY = process.env.LOCAL_PRIVATE_KEY as Hex | undefined;
+
+// One queue for every transaction this gateway sends. Anchoring and lot flagging share a
+// signer, and two concurrent writes from one account race for the same nonce.
+const txQueue = new TxQueue();
+
 const anchorService =
-  deployment?.contracts.BatchAnchor && process.env.LOCAL_PRIVATE_KEY
+  deployment?.contracts.BatchAnchor && CHAIN_KEY
     ? new AnchorService({
-        rpcUrl: process.env.LOCAL_RPC_URL ?? "http://127.0.0.1:8545",
-        privateKey: process.env.LOCAL_PRIVATE_KEY as Hex,
+        rpcUrl: RPC_URL,
+        privateKey: CHAIN_KEY,
         contract: deployment.contracts.BatchAnchor,
         chainId: deployment.chainId,
         statePath: process.env.ANCHOR_STATE_PATH ?? join(REPO_ROOT, "data", "anchor-state.json"),
         log: app.log,
+        queue: txQueue,
         onUpdate: (record) => publishAnchor(record),
+      })
+    : undefined;
+
+const lotService =
+  deployment?.contracts.LotRegistry && CHAIN_KEY
+    ? new LotService({
+        rpcUrl: RPC_URL,
+        privateKey: CHAIN_KEY,
+        contract: deployment.contracts.LotRegistry,
+        chainId: deployment.chainId,
+        queue: txQueue,
+        log: app.log,
       })
     : undefined;
 
@@ -269,9 +294,17 @@ function handleFinding(finding: Finding): void {
   publishLot(finding.lot);
 
   if (willFlag) {
-    // TODO(S1-13): LotRegistry.flagLot(lot, reason, evidenceDigest) once the anchor
-    // service owns a funded signer. The incident is already recorded and published, so
-    // the demo shows the breach whether or not the chain write has landed yet.
+    // The on-chain flag. Fired without awaiting: the incident is already recorded and
+    // published, so the dashboard shows the breach immediately and the chain write
+    // catches up. A slow RPC must not delay the alert (S1-10 wants it inside 10 s).
+    void lotService
+      ?.flagLot(finding.lot, finding.kind, finding.evidence[0] ?? (`0x${"00".repeat(32)}` as Hex))
+      .then((tx) => {
+        if (tx) {
+          incident.detail = `${incident.detail} · flagged on-chain ${tx.slice(0, 12)}`;
+          publisher.incident(incident);
+        }
+      });
 
     // Adaptive sampling: everything watching this lot speeds up so the incident is
     // captured at higher resolution while it is still happening (ADR-0004 §4).
@@ -386,9 +419,17 @@ app.post("/ingest", async (request, reply) => {
       receivedAt: Date.now(),
     };
 
+    const firstSightingOfLot = store.recordsForLot(record.lot).length === 0;
     findings.push(...store.addRecord(entry));
     batcher.add(outcome.digest);
     touchedLots.add(record.lot.toLowerCase());
+
+    // Open the lot on-chain the first time we see it. In the field a lot is created by a
+    // node binding to a QR code, not by someone clicking a button, so the gateway is the
+    // only component in a position to do this. Not awaited — ingest never waits on an RPC.
+    if (firstSightingOfLot && record.lot !== ZERO_LOT) {
+      void lotService?.ensureLot(record.lot, record.ts);
+    }
 
     const info = store.node(origin);
     publisher.record({
@@ -582,6 +623,150 @@ app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => 
   };
 });
 
+/** Every lot we know about. The ops dashboard's index and the demo's lot picker. */
+app.get("/lots", async () => ({
+  lots: store.lots().map((lot) => store.lotState(lot as Hex, isAnchored)),
+}));
+
+/**
+ * The recall query — ticket S1-11.
+ *
+ * A recall runs BACKWARDS. The useful question is not "where did this crate go?" but
+ * "which farms fed the lot on truck 27?", because that is what decides how much produce
+ * has to be pulled. The aggregation graph is traversable in both directions on-chain, and
+ * this endpoint walks both and joins each lot to what we actually observed.
+ *
+ * Degrades honestly: with no chain we still report this lot from local state and say so,
+ * rather than implying an empty subtree means an uncontaminated one.
+ */
+app.get<{ Params: { lotId: string } }>("/lot/:lotId/recall", async (request, reply) => {
+  const lotId = request.params.lotId.toLowerCase() as Hex;
+
+  if (!lotService) {
+    const local = store.recordsForLot(lotId);
+    if (local.length === 0) return reply.code(404).send({ error: "unknown lot" });
+    return {
+      lot: lotId,
+      chainAvailable: false,
+      note: "no chain configured — aggregation graph unavailable, showing this lot only",
+      onChain: null,
+      ancestors: [],
+      descendants: [],
+      affected: [summarise(lotId)],
+    };
+  }
+
+  const [onChain, ancestors, descendants] = await Promise.all([
+    lotService.getLot(lotId),
+    lotService.ancestors(lotId),
+    lotService.descendants(lotId),
+  ]);
+
+  if (!onChain && store.recordsForLot(lotId).length === 0) {
+    return reply.code(404).send({ error: "unknown lot" });
+  }
+
+  // Descendants are the recall set: everything that was rolled INTO this lot. Ancestors
+  // matter too — if this crate was folded into a bigger shipment, that shipment is
+  // implicated as well, which is why LotRegistry.flagLot propagates upward.
+  const affectedLots = [lotId, ...descendants, ...ancestors];
+  const affected = affectedLots.map((lot) => summarise(lot as Hex));
+
+  return {
+    lot: lotId,
+    chainAvailable: true,
+    onChain: onChain ?? null,
+    ancestors,
+    descendants,
+    affected,
+    summary: {
+      lots: affectedLots.length,
+      records: affected.reduce((n, a) => n + a.recordCount, 0),
+      devices: new Set(affected.flatMap((a) => a.devices)).size,
+      flaggedLots: affected.filter((a) => a.flagged).length,
+      breaches: affected.reduce((n, a) => n + a.breaches, 0),
+    },
+  };
+});
+
+function summarise(lot: Hex): {
+  lot: Hex;
+  badge: string;
+  recordCount: number;
+  devices: string[];
+  flagged: boolean;
+  breaches: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+} {
+  const state = store.lotState(lot, isAnchored);
+  const records = store.recordsForLot(lot);
+  const incidents = store.incidents.filter((i) => i.lot?.toLowerCase() === lot.toLowerCase());
+  return {
+    lot,
+    badge: state.badge,
+    recordCount: state.recordCount,
+    devices: state.devices,
+    flagged: state.flagged,
+    breaches: incidents.filter((i) => i.severity === "breach").length,
+    firstSeen: records[0]?.record.ts.toString() ?? null,
+    lastSeen: records[records.length - 1]?.record.ts.toString() ?? null,
+  };
+}
+
+/** One device's history and current chain position. Ops uses this to chase a silent node. */
+app.get<{ Params: { dev: string } }>("/device/:dev", async (request, reply) => {
+  const dev = request.params.dev.toLowerCase() as Hex;
+  const info = store.node(dev);
+  const records = store.records.filter((r) => r.record.dev.toLowerCase() === dev);
+  if (!info && records.length === 0) return reply.code(404).send({ error: "unknown device" });
+
+  return {
+    dev,
+    health: info ? store.healthEvent(info) : null,
+    chain: verifier.chainState(dev),
+    recordCount: records.length,
+    companionsWitnessed: store.companions.filter((c) => c.companion.dev.toLowerCase() === dev).length,
+    incidents: store.incidents.filter((i) => i.dev?.toLowerCase() === dev),
+    records: records.slice(-100).map((entry) => ({
+      seq: entry.record.seq,
+      ts: entry.record.ts.toString(),
+      t: entry.record.t,
+      digest: entry.digest,
+      verdict: entry.verdict,
+      anchored: isAnchored(entry.digest),
+    })),
+  };
+});
+
+/**
+ * EPCIS 2.0 projection — ticket S1-12.
+ *
+ * We do not invent an event vocabulary. EPCIS 2.0 is the standard behind FSMA 204 and
+ * EUDR, so a real supply-chain system could ingest this without a bespoke adapter — which
+ * is most of the difference between a demo and a product.
+ */
+app.get<{ Params: { lotId: string } }>("/lot/:lotId/epcis", async (request, reply) => {
+  const lotId = request.params.lotId.toLowerCase() as Hex;
+  const records = store.recordsForLot(lotId);
+  if (records.length === 0) return reply.code(404).send({ error: "unknown lot" });
+
+  const events = records.map((entry) => recordToEpcisEvent(entry.record, entry.digest));
+
+  // Breaches become their own inspecting/damaged events rather than being folded into a
+  // sensor reading: a recall system needs to see the finding, not re-derive it.
+  for (const incident of store.incidents) {
+    if (incident.lot?.toLowerCase() !== lotId) continue;
+    if (incident.severity !== "breach") continue;
+    events.push(incidentToEpcisEvent(lotId, incident.at, incident.kind, incident.evidence[0]));
+  }
+
+  events.sort((a, b) => a.eventTime.localeCompare(b.eventTime));
+
+  reply.header("content-type", "application/ld+json");
+  return toEpcisDocument(events);
+});
+
 /** The inclusion proof the browser re-verifies against a root read from a public RPC. */
 app.get<{ Params: { digest: string } }>("/proof/:digest", async (request, reply) => {
   const batch = proofs.get(request.params.digest.toLowerCase());
@@ -708,6 +893,48 @@ const heartbeat = setInterval(() => {
   }
 }, Math.max(1000, Math.floor(OFFLINE_AFTER_MS / 2)));
 heartbeat.unref();
+
+// ---------------------------------------------------------------------------
+// Flag reconciliation. The chain flags lots we never called flagLot on: rolling a
+// tainted crate into a shipment taints the shipment, inside `aggregate()`, with no
+// event naming the parent. Without this poll the gateway would serve VERIFIED for a
+// lot the chain has already condemned — invariant 5, from an angle that is easy to miss
+// because every one of our own code paths looks correct.
+// ---------------------------------------------------------------------------
+
+if (lotService) {
+  const flagPoll = setInterval(() => {
+    const known = store.lots().filter((lot) => !store.isFlagged(lot as Hex)) as Hex[];
+    if (known.length === 0) return;
+
+    void lotService
+      .flaggedAmong(known)
+      .then((flagged) => {
+        for (const lot of flagged) {
+          if (!store.markFlagged(lot)) continue;
+          app.log.warn({ lot }, "lot flagged on-chain by aggregation — badge updated");
+          const incident = store.recordIncident({
+            kind: "CONSENSUS_BREACH",
+            severity: "breach",
+            lot,
+            dev: null,
+            signals: [],
+            devices: [],
+            evidence: [],
+            at: Math.floor(Date.now() / 1000),
+            detail: "tainted by an aggregated child lot — flag propagated on-chain",
+            flagged: true,
+          });
+          publisher.incident(incident);
+          publishLot(lot);
+        }
+      })
+      .catch(() => {
+        /* the chain is optional; a poll failure must never disturb ingest */
+      });
+  }, Number(process.env.FLAG_POLL_SECONDS ?? 5) * 1000);
+  flagPoll.unref();
+}
 
 // Calm everything back down once a demo is reset.
 app.post("/ops/calm", async () => {

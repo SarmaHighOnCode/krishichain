@@ -15,13 +15,23 @@ import { Topics, Badge, NodeRole, badgeFor,
 
 ## Running it with no hardware
 
-Three terminals:
-
 ```bash
-npm run broker         # MQTT: tcp 1883 for nodes, ws 9001 for the browser
-npm run dev:gateway    # :8080
+npm run chain          # terminal 1 — local chain
+npm run deploy:local   # once, after the chain is up
+npm run broker         # terminal 2 — MQTT: tcp 1883 nodes, ws 9001 browser
+npm run dev:gateway    # terminal 3 — :8080
 npm run sim-swarm -- --breach
 ```
+
+Then:
+
+```bash
+npm run e2e      # 23 assertions across the whole pipeline. Exits non-zero on failure.
+npm run seed     # three smallholdings aggregated into a truck lot, one breaches
+```
+
+The chain is optional — with no deployment the gateway still ingests, verifies, chains and
+batches, and lots stay at `PENDING_ANCHOR`.
 
 The simulator is four devices with real secp256k1 keys, real signatures and real hash
 chains. The gateway cannot tell it from the boards on the bench.
@@ -83,13 +93,40 @@ gateway time is when we heard about it, and a buffered node makes those minutes 
 | `POST /devices` | Commission `{ address, role?, lat?, lon? }`. |
 | `POST /ingest` | Node batch, optional `relay` wrapper. |
 | `POST /companion` | Witness attestations. |
+| `GET /lots` | Every known lot with its badge and temperature range. |
 | `GET /lot/:lotId` | Everything the consumer page needs: badge, records, per-record companions and relay, incidents. |
-| `GET /proof/:digest` | Merkle inclusion proof. 404 with `status: "PENDING_ANCHOR"` until the batch closes. |
+| `GET /lot/:lotId/recall` | **The recall query.** Aggregation graph both directions, joined to what we observed. |
+| `GET /lot/:lotId/epcis` | GS1 EPCIS 2.0 document (`application/ld+json`). |
+| `GET /device/:dev` | One device's health, chain position and recent records. |
+| `GET /proof/:digest` | Merkle inclusion proof plus `anchor: { status, chainId, contract, txHash, blockNumber }`. |
 | `GET /ops/summary` | Node table, counters, MQTT status. |
 | `GET /ops/incidents` | Full incident list. |
 | `GET /ops/nodes` | Health rows. |
+| `GET /ops/anchors` | Anchor state and the high-water mark. |
 | `POST /ops/interval` | `{ dev?, seconds }` — force the adaptive-sampling change on stage. |
+| `POST /ops/reconcile` | Resolve anchors whose outcome was never learned. Never sends a transaction. |
 | `POST /anchor/flush` | Close the open batch now, so nothing waits 60 s in front of judges. |
+
+### The recall query
+
+`GET /lot/:lotId/recall` answers the question a recall actually asks — not "where did this
+crate go?" but **"which farms fed the lot on truck 27?"**, because that decides how much
+produce gets pulled.
+
+```bash
+npm run seed     # three smallholdings -> one truck lot, one of them breaches
+curl localhost:8080/lot/0x018f2c0000000000000000000000b027/recall
+```
+
+Returns `onChain` (state, custodian, flagged, parent), `descendants` (everything rolled
+into this lot), `ancestors` (every shipment this lot was folded into), and `affected` — each
+of those joined to its badge, record count, devices and breaches.
+
+`LotRegistry.flagLot` propagates **upward**, and `aggregate()` taints a parent the moment a
+flagged child is rolled in. So a breach in one smallholder's crate flags the whole truck
+lot, automatically, on-chain. The gateway polls for that (`FLAG_POLL_SECONDS`) because no
+event names the parent — without the poll the truck would read `VERIFIED` while the chain
+said otherwise.
 
 ---
 
