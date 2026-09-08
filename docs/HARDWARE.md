@@ -2,6 +2,10 @@
 
 Owner: **H2** (build, power, enclosure, calibration) · **H1** (firmware, pin contracts)
 
+> Swarm update (ADR-0004): four device classes, one 90-byte record. S2 Lolin LEAF
+> (§3a) + ESP32-CAM WITNESS (§3b, H2-12) added below. Pins live in
+> `firmware/lib/krishi/pins.h`, which mirrors this file exactly.
+
 > **Status: the BOM below is a specification, not an inventory.** Confirmed hardware is 2× ESP32
 > and a PlatformIO toolchain. Every peripheral is listed with a substitute and a "what we lose"
 > column so H2 can build with whatever is actually on the table. Ticket `H2-01` replaces the
@@ -71,6 +75,8 @@ farm node be a simple sensor.
 |---|---|
 | Demo node (tier 0 + tier 1) | ~900 |
 | Field node (tier 0 + LDR + battery, no OLED) | ~780 |
+| LEAF node (S2 Mini + DHT22 + LDR + battery, H2-11) | ~550 |
+| WITNESS node (AI Thinker CAM + SD card, H2-12) | ~700 |
 | Volume, 1k units, ESP32-C3-MINI + SHT31 | ~420 |
 
 ---
@@ -110,6 +116,45 @@ from `firmware/lib/krishi/pins.h`, which mirrors this exactly.
 | 0, 2, 12, 15 | Strapping pins — a pulled-up sensor here prevents booting |
 | 34–39 | Input only, **no internal pull-ups** — external resistor required |
 | ADC2 (0,2,4,12–15,25–27) | **Unavailable whenever WiFi is active.** This bites every ESP32 project once; it will not bite ours. |
+
+### 3a. LEAF node (Wemos Lolin S2 Mini, `node-leaf`) — H2-11
+
+ESP32-S2FN4R2, single-core, no Bluetooth, native USB-C. 4 MB flash → uses
+`firmware/partitions-4mb.csv` (krishibuf 128 KB ≈ 1,365 slots ≈ 11 h @ 30 s).
+S2 ADC works with WiFi on, so the ADC2 trap above does not apply — but every
+pin below is a safe first-pick GPIO (1,2,3,4,5,6,7,8,17,18,21,38) anyway.
+
+| Signal | GPIO | Notes |
+|---|---|---|
+| DHT22 data | 4 | 10 kΩ pull-up to 3.3 V |
+| LDR (ADC) | 5 | Safe GPIO, ADC-capable |
+| Battery sense (ADC) | 6 | Via a 100 kΩ/100 kΩ divider — **required**, raw Li-ion exceeds 3.3 V |
+| Status LED | 15 | Onboard blue LED |
+| Button (lot bind) | 0 | BOOT button, active low |
+
+Radio: ESP-NOW broadcast to HEAD on channel 1 (`swarm.h` `kChannel` — the whole
+swarm lives there; WiFi starts on the same channel). HEAD loss after 3 missed
+5 s heartbeats → WiFi-direct POST /ingest; 2 consecutive beats rejoin (flap
+guard in `failover.h`, proven in `firmware/test/test_swarm`).
+
+### 3b. WITNESS node (AI Thinker ESP32-CAM, `node-cam`) — H2-12
+
+The camera + SD own nearly every pin, so there is no DHT/LDR: T/H always carry
+the fault sentinel and `lux` is the frame mean-luma proxy (sealed-box < 15,
+open light > 80, threshold 40 tuned on the bench). Each capture posts a normal
+canonical record (so the companion links to a stored digest) plus a
+`CAM_PHOTO_V1` companion (96-byte canonical in `companion.h`, signed like a
+record) via POST `/ingest/companion`. No raw photo on-chain, ever.
+
+| Signal | GPIO | Notes |
+|---|---|---|
+| Camera bus | 0,5,18–19,21–23,25–27,32,34–36,39 | Fixed by the AI Thinker layout, do not move |
+| SD card | 2,4,12–13 | 1-bit mode; optional archive (`/krishi/c<seq>.raw` + `.meta`) |
+| Red lamp | 33 | Onboard red LED, active low — the lid-open beacon |
+| Flash LED | 4 | Keep OFF during captures (blinds the verdict) |
+
+Photos are heavy: 60 s default interval (vs 30 s sensing); adaptive INTERVAL
+broadcast lands with H1-14.
 
 ---
 
