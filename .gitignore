@@ -44,7 +44,7 @@ firmware/**/.vscode/
 *.db-journal
 *.sqlite
 *.sqlite3
-data/
+/data/
 quarantine/
 
 # logs
@@ -70,3 +70,5 @@ h2-local/
 
 # next.js
 next-env.d.ts
+/.claude/skills/lavish
+/.lavish

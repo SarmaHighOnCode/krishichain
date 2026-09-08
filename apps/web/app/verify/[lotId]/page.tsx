@@ -1,9 +1,9 @@
 /**
- * Consumer verification page — tickets S2-02, S2-03, S2-04.
+ * Consumer verification page — tickets S2-02, S2-03, S2-04, S2-05.
  *
- * This is the highest-value screen in the project. Build it mobile-first: a judge will open
- * it on their own phone, and the moment that lands is watching a proof recompute in their
- * browser (docs/DEMO-SCRIPT.md, 1:15).
+ * This is the highest-value screen in the project. Built mobile-first: a judge will open it on
+ * their own phone, and the moment that lands is watching a proof recompute in their browser
+ * (docs/DEMO-SCRIPT.md, 1:15).
  *
  * Two rules the design must respect:
  *
@@ -14,9 +14,17 @@
  *      only say "verified" is a marketing asset, not a verification system (PRD §6.6).
  */
 
-import { VerifyPanel } from "../../../components/VerifyPanel";
+import { type ChainVerdict } from "@krishichain/core";
+
+import { Badge, decideVerificationStatus } from "../../../components/Badge";
+import { ColdChainChart } from "../../../components/ColdChainChart";
+import { JourneyTimeline } from "../../../components/JourneyTimeline";
+import { VerifyPanel, type InclusionProof } from "../../../components/VerifyPanel";
+import { networkForChainId, readBatchAnchorAddress } from "../../../lib/deployments";
 
 const GATEWAY = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:8080";
+const RPC_URL = process.env.NEXT_PUBLIC_VERIFY_RPC_URL ?? "";
+const CHAIN_ID = Number(process.env.NEXT_PUBLIC_VERIFY_CHAIN_ID ?? "80002");
 
 interface LotRecord {
   seq: number;
@@ -26,8 +34,8 @@ interface LotRecord {
   h: number;
   lux: number;
   flags: number;
-  digest: string;
-  verdict: string;
+  digest: `0x${string}`;
+  verdict: ChainVerdict;
   anchored: boolean;
 }
 
@@ -42,6 +50,24 @@ async function fetchLot(lotId: string): Promise<LotResponse | null> {
     const response = await fetch(`${GATEWAY}/lot/${lotId}`, { cache: "no-store" });
     if (!response.ok) return null;
     return (await response.json()) as LotResponse;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Server-side proof fetch (S2-03). Moving this off the browser is what makes "still works with
+ * the gateway killed" true: by the time the page renders, the proof (if any) is already in
+ * hand, and the browser's only remaining network call is the public RPC read in VerifyPanel.
+ */
+async function fetchProof(digest: string): Promise<InclusionProof | null> {
+  if (!digest) return null;
+  try {
+    const response = await fetch(`${GATEWAY}/proof/${digest}`, { cache: "no-store" });
+    // Covers the gateway's real 404 "not anchored yet" response along with any other failure —
+    // both resolve to the same honest "nothing to verify against yet" state in VerifyPanel.
+    if (!response.ok) return null;
+    return (await response.json()) as InclusionProof;
   } catch {
     return null;
   }
@@ -63,9 +89,16 @@ export default async function VerifyPage({ params }: { params: Promise<{ lotId: 
     );
   }
 
-  const breached = lot.records.some((record) => (record.flags & 0b1) !== 0 || record.t > 100);
-  const unverifiable = lot.records.some((record) => record.verdict !== "ACCEPT");
-  const anchored = lot.records.filter((record) => record.anchored).length;
+  const network = networkForChainId(CHAIN_ID);
+  const firstDigest = lot.records[0]?.digest ?? "";
+
+  const [proof, anchorAddress] = await Promise.all([
+    fetchProof(firstDigest),
+    readBatchAnchorAddress(network),
+  ]);
+
+  const anchoredCount = lot.records.filter((record) => record.anchored).length;
+  const status = decideVerificationStatus(lot.records);
 
   return (
     <main>
@@ -75,52 +108,17 @@ export default async function VerifyPage({ params }: { params: Promise<{ lotId: 
       </p>
 
       <div className="card">
-        {unverifiable ? (
-          <span className="badge badge--bad">Unverifiable — chain gap</span>
-        ) : breached ? (
-          <span className="badge badge--flagged">Flagged — cold chain breach</span>
-        ) : anchored === lot.records.length ? (
-          <span className="badge badge--ok">Verified</span>
-        ) : (
-          <span className="badge badge--pending">Pending anchor</span>
-        )}
+        <Badge status={status} />
         <p className="muted" style={{ marginBottom: 0 }}>
-          {lot.recordCount} records · {anchored} anchored
+          {lot.recordCount} records · {anchoredCount} anchored
         </p>
       </div>
 
-      {/* TODO(S2-03): the browser must read the anchor root from a PUBLIC RPC, not from our
-          API, and recompute the proof locally. Verifying against a root our own server hands
-          us proves nothing. */}
-      <VerifyPanel digest={lot.records[0]?.digest ?? ""} gatewayUrl={GATEWAY} />
+      <VerifyPanel proof={proof} anchorAddress={anchorAddress} rpcUrl={RPC_URL} network={network} />
 
-      {/* TODO(S2-02): replace this table with the designed timeline.
-          TODO(S2-05): cold-chain chart with the breach window shaded. */}
-      <div className="card">
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr className="muted" style={{ textAlign: "left" }}>
-              <th>seq</th>
-              <th>temp</th>
-              <th>rh</th>
-              <th>state</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lot.records.slice(-20).map((record) => (
-              <tr key={record.seq}>
-                <td>{record.seq}</td>
-                <td>{(record.t / 10).toFixed(1)}&deg;C</td>
-                <td>{(record.h / 10).toFixed(1)}%</td>
-                <td className="muted">
-                  {record.verdict}
-                  {(record.flags & 0b1) !== 0 ? " · LID OPEN" : ""}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ColdChainChart records={lot.records} />
+
+      <JourneyTimeline records={lot.records} />
     </main>
   );
 }

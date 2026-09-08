@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DESIGN.md tokens, duplicated here only because Android resource themes/launcher icons
+         need XML color references before Compose's ui/theme/Color.kt can apply. Compose is the
+         source of truth for everything inside the app UI itself. -->
+    <color name="canvas">#FFFFFF</color>
+    <color name="deep_green">#003C33</color>
+    <color name="primary">#17171C</color>
+</resources>

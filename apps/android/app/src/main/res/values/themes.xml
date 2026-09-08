@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose (ui/theme/Theme.kt) owns the real design system; this XML theme only needs to
+         exist so the manifest has something to point at before the first Composable runs, and
+         it sets the launch window background to the DESIGN.md canvas color to avoid a white/black
+         flash that doesn't match either app theme. -->
+    <style name="Theme.KrishiChain" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/canvas</item>
+        <item name="android:statusBarColor">@color/canvas</item>
+    </style>
+</resources>
