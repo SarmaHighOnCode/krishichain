@@ -22,12 +22,41 @@
 
 namespace krishi {
 
+class KeyStore {
+ public:
+  virtual ~KeyStore() = default;
+  virtual bool load(uint8_t privateKey[32]) = 0;
+  virtual bool save(const uint8_t privateKey[32]) = 0;
+  virtual bool clear() = 0;
+};
+
+class MemoryKeyStore : public KeyStore {
+ public:
+  bool load(uint8_t privateKey[32]) override;
+  bool save(const uint8_t privateKey[32]) override;
+  bool clear() override;
+
+ private:
+  uint8_t key_[32] = {0};
+  bool hasKey_ = false;
+};
+
+class NvsKeyStore : public KeyStore {
+ public:
+  bool load(uint8_t privateKey[32]) override;
+  bool save(const uint8_t privateKey[32]) override;
+  bool clear() override;
+};
+
 class Identity {
  public:
   /**
-   * Load the key from NVS, or generate and persist one on first boot.
+   * Load the key from specified store, or generate and persist one on first boot.
    * @return true if the device has a usable identity afterwards.
    */
+  bool begin(KeyStore& store);
+
+  /** Convenience overload using default NvsKeyStore (device) or MemoryKeyStore (host). */
   bool begin();
 
   /** True if this boot generated a fresh identity (i.e. the node was just commissioned). */
@@ -50,8 +79,7 @@ class Identity {
   /** Convenience: canonical-encode, digest and sign in one step. */
   bool signRecord(const Record& record, uint8_t out[kSignatureLength]) const;
 
-  /** Erase the stored identity. Destructive — the device gets a new address and must be
-   *  re-registered on-chain. Used only by the commissioning flow. */
+  /** Erase stored identity using default KeyStore. */
   static bool erase();
 
  private:

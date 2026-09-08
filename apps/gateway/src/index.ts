@@ -20,7 +20,18 @@ const PORT = Number(process.env.GATEWAY_PORT ?? 8080);
 
 const hex = (bytes: number) => z.string().regex(new RegExp(`^0x[0-9a-fA-F]{${bytes * 2}}$`));
 
-const recordSchema = z.object({
+const canonicalRecordSchema = z
+  .object({
+    canonical: hex(90),
+    sig: hex(64).optional(),
+    signature: hex(64).optional(),
+  })
+  .transform((val) => ({
+    canonical: val.canonical,
+    sig: (val.sig ?? val.signature)!,
+  }));
+
+const explodedRecordSchema = z.object({
   seq: z.number().int().min(0).max(0xffffffff),
   prev: hex(32),
   ts: z.union([z.number(), z.string()]),
@@ -34,8 +45,10 @@ const recordSchema = z.object({
   sig: hex(64),
 });
 
+const recordSchema = z.union([canonicalRecordSchema, explodedRecordSchema]);
+
 const ingestSchema = z.object({
-  v: z.literal(1),
+  v: z.literal(1).optional().default(1),
   dev: hex(20),
   records: z.array(recordSchema).min(1).max(100),
 });
@@ -107,22 +120,31 @@ app.post("/ingest", async (request, reply) => {
   const outcomes: Outcome[] = [];
 
   for (const raw of records) {
-    const record: SensorRecord = {
-      v: 1,
-      dev: dev as Hex,
-      seq: raw.seq,
-      prev: raw.prev as Hex,
-      ts: BigInt(raw.ts),
-      tsq: raw.tsq,
-      lot: raw.lot as Hex,
-      t: raw.t,
-      h: raw.h,
-      lux: raw.lux,
-      flags: raw.flags,
-      bat: raw.bat,
-    };
+    let record: SensorRecord;
+    let sig: Hex;
 
-    const outcome = verifier.ingest(record, raw.sig as Hex);
+    if ("canonical" in raw) {
+      record = decodeRecord(hexToBytes(raw.canonical));
+      sig = raw.sig as Hex;
+    } else {
+      record = {
+        v: 1,
+        dev: dev as Hex,
+        seq: raw.seq,
+        prev: raw.prev as Hex,
+        ts: BigInt(raw.ts),
+        tsq: raw.tsq,
+        lot: raw.lot as Hex,
+        t: raw.t,
+        h: raw.h,
+        lux: raw.lux,
+        flags: raw.flags,
+        bat: raw.bat,
+      };
+      sig = raw.sig as Hex;
+    }
+
+    const outcome = verifier.ingest(record, sig);
     outcomes.push(outcome);
 
     if (outcome.status === "rejected") {
@@ -133,7 +155,7 @@ app.post("/ingest", async (request, reply) => {
     store.push({
       record,
       digest: outcome.digest,
-      signature: raw.sig as Hex,
+      signature: sig,
       verdict: outcome.verdict,
       receivedAt: Date.now(),
     });

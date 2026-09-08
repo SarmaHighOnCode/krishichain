@@ -16,20 +16,7 @@
 namespace krishi {
 namespace pins {
 
-#if defined(KRISHI_NODE_FARM)
-
-constexpr int kDhtData = 4;        // DHT22 data, 10k pull-up to 3V3
-constexpr int kSoilMoisture = 34;  // ADC1, input-only
-constexpr int kStatusLed = 2;      // onboard LED on most DevKit v1 boards
-constexpr int kOledSda = 21;
-constexpr int kOledScl = 22;
-constexpr int kLotButton = 0;      // onboard BOOT button, active low
-
-constexpr bool kHasLdr = false;
-constexpr bool kHasReed = false;
-constexpr bool kHasBatterySense = false;
-
-#elif defined(KRISHI_NODE_LEAF)
+#if defined(KRISHI_ROLE_LEAF)
 
 /**
  * LEAF node on the Wemos Lolin S2 Mini (ESP32-S2FN4R2, single-core, no BT).
@@ -48,7 +35,7 @@ constexpr bool kHasLdr = true;
 constexpr bool kHasReed = false;
 constexpr bool kHasBatterySense = true;
 
-#elif defined(KRISHI_NODE_CAM)
+#elif defined(KRISHI_ROLE_CAM)
 
 /**
  * WITNESS node on the AI Thinker ESP32-CAM. Camera + SD are on-board modules —
@@ -64,7 +51,7 @@ constexpr bool kHasLdr = false;
 constexpr bool kHasReed = false;
 constexpr bool kHasBatterySense = false;
 
-#elif defined(KRISHI_NODE_TRANSIT)
+#elif defined(KRISHI_ROLE_HEAD)
 
 constexpr int kDhtData = 4;
 constexpr int kLdr = 35;           // ADC1, input-only. NOT ADC2 — WiFi kills ADC2.
