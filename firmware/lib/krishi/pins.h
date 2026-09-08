@@ -16,7 +16,7 @@
 namespace krishi {
 namespace pins {
 
-#if defined(KRISHI_NODE_FARM)
+#if defined(KRISHI_ROLE_LEAF)
 
 constexpr int kDhtData = 4;        // DHT22 data, 10k pull-up to 3V3
 constexpr int kSoilMoisture = 34;  // ADC1, input-only
@@ -29,7 +29,7 @@ constexpr bool kHasLdr = false;
 constexpr bool kHasReed = false;
 constexpr bool kHasBatterySense = false;
 
-#elif defined(KRISHI_NODE_TRANSIT)
+#elif defined(KRISHI_ROLE_HEAD)
 
 constexpr int kDhtData = 4;
 constexpr int kLdr = 35;           // ADC1, input-only. NOT ADC2 — WiFi kills ADC2.
