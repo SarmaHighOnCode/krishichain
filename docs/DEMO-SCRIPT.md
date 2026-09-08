@@ -104,6 +104,70 @@ broken demo scores better than a flawless run.
 
 ---
 
+## The 90-second version
+
+For a judging-floor slot, not the main stage. Budget: hook (15 s) → verification moment
+(35–40 s) → honest failure (20 s) → cost and close (15–20 s). Runs entirely on
+`npm run dev` + `npm run sim`; a physical node in hand helps but isn't required for this cut.
+
+**Pre-demo checklist for this cut:** run `npm run deploy:local` (or `deploy:amoy`) *before* you
+start talking, so `deployments/<network>/addresses.json` exists. If it doesn't, the **Verify
+independently** button never appears — the verify page renders an honest **Not deployed** card
+instead, and the script below adapts at the ★ beat rather than faking a green badge.
+
+### 0:00–0:15 · The hook
+
+> "Every food traceability pilot puts sensor data on a blockchain and calls it trusted. But a
+> blockchain only proves a record hasn't changed *since it was written* — it says nothing about
+> the ten seconds before that. Whoever fills in the row still owns the truth.
+>
+> KrishiChain puts the signing key inside the ₹750 sensor node itself. It signs its own reading
+> before anything touches a server."
+
+- Hold up the transit node, or point at the laptop if it isn't on the table.
+
+### 0:15–0:55 · The verification moment ★
+
+*This is the beat the whole project exists for.*
+
+- Scan the crate QR (or open the URL directly) → `/verify/<lotId>` loads.
+- **If contracts are deployed:** tap **Verify independently**.
+
+  > "This isn't reading our database. The browser just pulled the Merkle root straight from the
+  > chain and recomputed the proof itself, right here."
+
+  Kill the gateway process on the laptop. Reload the page. Tap verify again — same result.
+
+  > "Our backend just died and that didn't change. You never had to trust our server. Only the
+  > math."
+
+- **If contracts aren't deployed yet:** the page shows **Not deployed** instead of a button.
+
+  > "This card is honest, not broken — there's a real Merkle proof sitting behind it, but nothing
+  > on-chain to check it against yet, so the page refuses to call it verified. That refusal is
+  > the same design principle as the green checkmark you'd otherwise see."
+
+### 0:55–1:15 · The honest failure
+
+> "And when something really is wrong, we don't hide it either."
+
+- In a terminal: `npm run sim -- --gap-at 40` — the simulator signs and hash-chains every record
+  normally, then silently drops record 40 before it's sent.
+- Reload `/verify/<lotId>`. The badge reads **Unverifiable — chain gap or fork**.
+
+> "We just told our own simulated node to drop a reading mid-stream. The gateway noticed the
+> missing sequence number and refused to call the lot verified. Nobody has to take our word that
+> we'd catch a real gap — you just watched us catch a fake one."
+
+### 1:15–1:30 · Cost and close
+
+> "Two ESP32s, signing on-device, hash-chained so nothing can be dropped even offline. We
+> Merkle-batch readings so a crate costs about ₹1.50 to trace instead of ₹240 written naively —
+> under 0.2% of the goods' value. ₹750 a node, and the buyer never has to trust us. Only the
+> chain."
+
+---
+
 ## The 30-second version
 
 If you get cut short, this is the whole pitch:

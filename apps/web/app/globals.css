@@ -1,21 +1,82 @@
 /*
- * Placeholder styling only.
+ * S2-01 — design language, per /DESIGN.md (getdesign, "cohere" template).
  *
- * Ticket S2-01 replaces this with a real design language — type scale, colour system, the
- * badge set. Do NOT let this file grow into the design system by accretion; two of the four
- * judges will experience the project almost entirely through this surface, and a default
- * card grid is exactly what a fullstack judge spots in three seconds.
+ * DESIGN.md defines color/type/radius/spacing tokens and a component vocabulary extracted
+ * from Cohere's site. It has no notion of KrishiChain's four verification states, so the
+ * --status-* tokens below are a deliberate extension: verified reuses the brand's deep green,
+ * flagged reuses coral (already used there as an attention/taxonomy color, per DESIGN.md's
+ * blog-filter-chip), unverifiable reuses the documented error red, pending stays neutral slate.
  */
 
 :root {
-  --bg: #0f1310;
-  --surface: #171d19;
-  --line: #2a332d;
-  --text: #e8efe9;
-  --muted: #9aab9f;
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --bad: #f87171;
+  /* --- DESIGN.md: colors --- */
+  --color-primary: #17171c;
+  --color-black: #000000;
+  --color-ink: #212121;
+  --color-deep-green: #003c33;
+  --color-navy: #071829;
+  --color-canvas: #ffffff;
+  --color-stone: #eeece7;
+  --color-pale-green: #edfce9;
+  --color-pale-blue: #f1f5ff;
+  --color-hairline: #d9d9dd;
+  --color-border-light: #e5e7eb;
+  --color-card-border: #f2f2f2;
+  --color-muted: #93939f;
+  --color-slate: #75758a;
+  --color-body-muted: #616161;
+  --color-action-blue: #1863dc;
+  --color-focus-blue: #4c6ee6;
+  --color-coral: #ff7759;
+  --color-coral-soft: #ffad9b;
+  --color-form-focus: #9b60aa;
+  --color-on-primary: #ffffff;
+  --color-error: #b30000;
+
+  /* --- extension: the four verification states, not covered by DESIGN.md --- */
+  --status-verified: var(--color-deep-green);
+  --status-verified-wash: var(--color-pale-green);
+  --status-pending: var(--color-slate-strong);
+  --status-pending-wash: var(--color-stone);
+  --status-flagged: #9c3c17; /* coral darkened further (S2-10) — 4.67:1 on --status-flagged-wash
+                                 read fine on a lab monitor but thin for FLAGGED, the one status
+                                 that most needs to be unmissable in direct sun; now ~5.9:1 */
+  --status-flagged-wash: #ffe9e2;
+  --status-unverifiable: var(--color-error);
+  --status-unverifiable-wash: #fbe6e4;
+
+  /* S2-10: --color-slate (#75758a) is DESIGN.md's token, used verbatim in a few decorative
+     spots, but its text contrast is borderline-to-failing on the light washes/chips this page
+     uses it on: ~3.8:1 on --color-stone (fails AA's 4.5:1 — this is what made the old
+     --status-pending badge and the `code` chip hard to read on a phone), and only ~4.5:1 on
+     white. --color-slate-strong is the same hue darkened for those text uses; ~7.3:1 on
+     --color-stone, ~8.7:1 on white. Introduced here rather than editing --color-slate itself,
+     to avoid moving anything outside this ticket's scope. */
+  --color-slate-strong: #4a4a5c;
+
+  /* --- DESIGN.md: radius scale --- */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+  --radius-pill: 32px;
+  --radius-full: 9999px;
+
+  /* --- DESIGN.md: spacing scale --- */
+  --space-xxs: 2px;
+  --space-xs: 6px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-section: 80px;
+
+  /* --- DESIGN.md: type families (see layout.tsx for next/font setup + fallbacks) --- */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 * {
@@ -24,62 +85,121 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  line-height: 1.55;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 main {
   max-width: 40rem;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: var(--space-xl) 1.25rem var(--space-section);
 }
 
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  margin: 0 0 var(--space-xs);
+}
+
+/* Section Heading scale (DESIGN.md), scaled down for a 360px-first verification page rather
+   than the 48px marketing size the token was extracted at. */
 h1 {
-  font-size: 1.6rem;
+  font-size: clamp(1.75rem, 5vw + 1rem, 2.5rem);
+  line-height: 1.1;
   letter-spacing: -0.02em;
-  margin: 0 0 0.25rem;
+}
+
+h2 {
+  font-size: 1.3rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--color-body-muted);
 }
 
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-slate-strong);
+  margin: 0 0 var(--space-sm);
+}
+
+/* --- component: card (DESIGN.md "capability-card" — bordered, flat, no shadow) --- */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  padding: 1rem 1.25rem;
-  margin: 1rem 0;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg) var(--space-xl);
+  margin: var(--space-lg) 0;
 }
 
+/* --- component: badge (DESIGN.md "mono-label" typography on a pill chip) --- */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
-.badge--ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
-.badge--pending { background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); }
-.badge--flagged { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
-.badge--bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+.badge--ok {
+  background: var(--status-verified-wash);
+  color: var(--status-verified);
+}
 
+.badge--pending {
+  background: var(--status-pending-wash);
+  color: var(--status-pending);
+}
+
+.badge--flagged {
+  background: var(--status-flagged-wash);
+  color: var(--status-flagged);
+}
+
+.badge--bad {
+  background: var(--status-unverifiable-wash);
+  color: var(--status-unverifiable);
+}
+
+/* --- component: button-primary (DESIGN.md — near-black pill CTA) --- */
 button {
   font: inherit;
-  color: var(--bg);
-  background: var(--ok);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border: 0;
-  border-radius: 0.5rem;
-  padding: 0.6rem 1rem;
-  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: var(--space-md) var(--space-xl);
   cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-black);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-focus-blue);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -87,9 +207,26 @@ button:disabled {
   cursor: progress;
 }
 
+/* --- links (DESIGN.md "button-secondary" — underlined text, no fill) --- */
+a {
+  color: var(--color-action-blue);
+}
+
+/* --- technical/mono text: digests, addresses, canonical hex --- */
 code {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
-  color: var(--muted);
-  word-break: break-all;
+  color: var(--color-slate-strong); /* was --color-slate: ~3.8:1 on this chip's background,
+                                        below AA's 4.5:1 minimum (S2-10) */
+  background: var(--color-stone);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-xs);
+  /* S2-10: was `word-break: break-all`, which breaks at *every* character boundary once a line
+     is tight — including short words like the `amoy` network chip, which split "am"/"oy" at
+     360px even though the whole word would have fit on the next line. overflow-wrap only forces
+     a break when a run of text has no natural break point (spaces, hyphens) AND would overflow
+     the line on its own — exactly the 32-byte hex digest / full lotId case this rule exists for
+     — while leaving short tokens like `amoy` to wrap as a whole word. */
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
