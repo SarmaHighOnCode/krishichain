@@ -65,5 +65,8 @@ desktop.ini
 playwright-report/
 test-results/
 
+# local-only H2 workspace — never pushed to GitHub
+h2-local/
+
 # next.js
 next-env.d.ts

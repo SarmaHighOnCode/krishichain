@@ -126,6 +126,9 @@ void test_decode_refuses_a_wrong_length() {
   TEST_ASSERT_FALSE(krishi::decodeRecord(bytes, kCanonicalLength - 1, out));
 }
 
+void setUp() {}
+void tearDown() {}
+
 int main(int, char**) {
   UNITY_BEGIN();
   loadVectors();
