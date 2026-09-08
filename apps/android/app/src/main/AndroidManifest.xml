@@ -5,6 +5,12 @@
          invariant on client-side verification never trusting the gateway's own root). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Phase 2 virtual-node screen: GPS companion attestations (POST /companion, kind=GPS).
+         COARSE is the fallback the runtime permission flow requests if FINE is denied; a
+         coarse-only fix still produces a valid (if less precise) GpsEvidence. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
