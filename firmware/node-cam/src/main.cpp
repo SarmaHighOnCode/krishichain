@@ -1,9 +1,12 @@
 #include <Arduino.h>
+#include <SD_MMC.h>
 #include <WiFi.h>
 #include <esp_camera.h>
 
 static const char* kSsid = "Debyte";
 static const char* kPass = "123456789";
+static bool sd_ok = false;
+static unsigned cap_no = 0;
 
 static bool cameraBegin() {
   camera_config_t c;
@@ -61,9 +64,30 @@ void setup() {
   } else {
     Serial.println("camera: ok");
   }
+
+  SD_MMC.setPins(14, 15, 2);
+  sd_ok = SD_MMC.begin("/sdcard", true);
+  if (!sd_ok) {
+    Serial.println("sd: MOUNT FAILED — captures print only, retrying in loop");
+  } else {
+    if (!SD_MMC.exists("/cam")) SD_MMC.mkdir("/cam");
+    Serial.printf("sd: %llu MB free\n",
+                  (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / (1024ULL * 1024ULL));
+  }
 }
 
 void loop() {
+  if (!sd_ok) {
+    static uint32_t sd_try = 0;
+    if (millis() - sd_try > 30000) {
+      sd_try = millis();
+      if (SD_MMC.begin("/sdcard", true)) {
+        sd_ok = true;
+        if (!SD_MMC.exists("/cam")) SD_MMC.mkdir("/cam");
+        Serial.println("sd: late mount ok");
+      }
+    }
+  }
   if (WiFi.status() != WL_CONNECTED) {
     static uint32_t last_try = 0;
     if (millis() - last_try > 10000) {
@@ -89,8 +113,19 @@ void loop() {
     Serial.println("cap: FAILED");
     return;
   }
-  Serial.printf("cap: bytes=%u wifi=%s ip=%s\n", (unsigned)fb->len,
-                WiFi.status() == WL_CONNECTED ? "up" : "down",
-                WiFi.localIP().toString().c_str());
+  bool saved = false;
+  if (sd_ok && fb->len > 0) {
+    char path[32];
+    snprintf(path, sizeof(path), "/cam/c%u.jpg", cap_no);
+    File f = SD_MMC.open(path, FILE_WRITE);
+    if (f) {
+      f.write(fb->buf, fb->len);
+      f.close();
+      saved = true;
+    }
+  }
+  Serial.printf("cap #%u: bytes=%u sd=%s ip=%s\n", cap_no, (unsigned)fb->len,
+                saved ? "ok" : "skip", WiFi.localIP().toString().c_str());
   esp_camera_fb_return(fb);
+  ++cap_no;
 }
