@@ -5,35 +5,51 @@
  * (components/OpsDashboard.tsx, for the 3 s poll) so the two never drift on shape.
  */
 
-/** Mirrors `GET /ops/summary` in apps/gateway/src/index.ts — aggregate counters only. */
+import type { HealthEvent } from "@krishichain/core";
+
+/**
+ * Mirrors `GET /ops/summary` in apps/gateway/src/index.ts. S1-14/S1-15 (companion ingest +
+ * MQTT/swarm) added the fields below `incidents` — including real per-node rows, which used to
+ * not exist (see NodeHealth's history before this).
+ */
 export interface OpsSummary {
   records: number;
+  companions: number;
+  orphanCompanions: number;
   quarantined: number;
   batches: number;
   pendingLeaves: number;
   lastRoot: string;
   incidents: number;
+  breaches: number;
+  mqtt: { connected: boolean; dropped: number };
+  /** Real per-device rows, direct from the gateway's swarm store — `store.allNodes()`. */
+  nodes: HealthEvent[];
 }
 
 /**
- * Per-device health row for a future node table. The gateway does not expose this today —
- * `GET /ops/summary` is aggregate-only, there is no per-device array anywhere in
- * apps/gateway/src/index.ts. This type exists so the table in OpsDashboard has somewhere to
- * plug in real data later without a reshape. Do not populate it with fabricated rows.
- *
- * Recommended shape for the gateway team: `GET /ops/nodes` ->
- *   { address: Hex; lastSeen: number /* epoch ms *\/; bufferDepth: number; status: NodeStatus }[]
- * `lastSeen` from the most recent accepted record per `dev`; `bufferDepth` from the node's own
- * buffered-but-unsent count (needs the node to report it, e.g. an `ackSeq` gap) or, failing
- * that, its share of `pendingLeaves`; `status` derived from how stale `lastSeen` is.
+ * Display row for the node health table. A thin reshape of `HealthEvent` (dev -> address,
+ * lastSeenAt -> lastSeen) rather than a second source of truth — `status` is derived from the
+ * gateway's own `online` boolean, not re-guessed client-side, because `online` is already
+ * computed correctly there (a 5 s silence timeout — see docs/SWARM-API.md's "online is
+ * computed, not reported").
  */
-export type NodeStatus = "online" | "stale" | "offline";
+export type NodeStatus = "online" | "offline";
 
 export interface NodeHealth {
   address: string;
   lastSeen: number;
-  bufferDepth: number;
+  bufferDepth: number | null;
   status: NodeStatus;
+}
+
+export function toNodeHealth(events: HealthEvent[]): NodeHealth[] {
+  return events.map((e) => ({
+    address: e.dev,
+    lastSeen: e.lastSeenAt,
+    bufferDepth: e.bufferDepth ?? null,
+    status: e.online ? "online" : "offline",
+  }));
 }
 
 export const ZERO_ROOT = `0x${"00".repeat(32)}`;

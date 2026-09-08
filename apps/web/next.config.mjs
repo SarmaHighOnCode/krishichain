@@ -4,6 +4,8 @@ const nextConfig = {
   transpilePackages: ["@krishichain/core"],
   env: {
     NEXT_PUBLIC_GATEWAY_URL: process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:8080",
+    // S2-12 twins dashboard — browser-side MQTT over WebSocket.
+    NEXT_PUBLIC_MQTT_WS_URL: process.env.NEXT_PUBLIC_MQTT_WS_URL ?? "ws://localhost:9001",
   },
   webpack(config) {
     // packages/core's ESM source imports its own siblings with explicit ".js" extensions
