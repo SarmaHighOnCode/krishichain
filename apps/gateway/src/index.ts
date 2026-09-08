@@ -194,6 +194,45 @@ const anchorService =
       })
     : undefined;
 
+/**
+ * The public, shareable anchor — ticket S1-13.
+ *
+ * Deliberately a SECOND service with its own state file and its own queue: a different
+ * account on a different chain has a different nonce space, and sharing either would
+ * couple the demo path to the internet. Amoy is fired and forgotten. If the venue WiFi is
+ * hostile the local chain is unaffected and the explorer link simply arrives late — which
+ * is the whole reason invariant 6 exists.
+ */
+const amoyDeployment = loadDeployment("amoy", REPO_ROOT);
+const amoyAnchor =
+  amoyDeployment?.contracts.BatchAnchor && process.env.AMOY_PRIVATE_KEY
+    ? new AnchorService({
+        rpcUrl: process.env.AMOY_RPC_URL ?? "https://rpc-amoy.polygon.technology",
+        privateKey: process.env.AMOY_PRIVATE_KEY as Hex,
+        contract: amoyDeployment.contracts.BatchAnchor,
+        chainId: amoyDeployment.chainId,
+        statePath: process.env.AMOY_STATE_PATH ?? join(REPO_ROOT, "data", "anchor-state-amoy.json"),
+        log: app.log,
+        queue: new TxQueue(),
+        timeoutMs: Number(process.env.AMOY_TIMEOUT_MS ?? 30_000),
+        onUpdate: (record) => {
+          publisher.anchor({
+            index: record.index,
+            root: record.root as Hex,
+            prevRoot: record.prevRoot as Hex,
+            leafCount: record.leafCount,
+            closedAt: record.updatedAt,
+            reason: "manual",
+            status: record.status,
+            chainId: amoyDeployment.chainId,
+            ...(record.txHash ? { txHash: record.txHash as Hex } : {}),
+            ...(record.blockNumber ? { blockNumber: record.blockNumber } : {}),
+            ...(record.error ? { error: record.error } : {}),
+          });
+        },
+      })
+    : undefined;
+
 const lotService =
   deployment?.contracts.LotRegistry && CHAIN_KEY
     ? new LotService({
@@ -247,10 +286,15 @@ const batcher = new MerkleBatcher({
     // Lots whose records just became provable move from PENDING_ANCHOR to VERIFIED.
     for (const lot of store.lots()) publishLot(lot as Hex);
 
-    // The local chain is the path the demo depends on, so it is awaited. The service
-    // queues internally, so batches anchor in order and never race for a `prevRoot`.
+    // The local chain is the path the demo depends on. The service queues internally, so
+    // batches anchor in order and never race for a `prevRoot`.
     void anchorService?.submit(batch).catch((error) => {
       app.log.error({ err: String(error), index: batch.index }, "anchor submit threw");
+    });
+
+    // Amoy is the shareable path, and it is allowed to be slow or absent.
+    void amoyAnchor?.submit(batch).catch((error) => {
+      app.log.warn({ err: String(error), index: batch.index }, "amoy anchor failed — local is unaffected");
     });
   },
 });
@@ -814,6 +858,21 @@ app.get("/ops/anchors", async () => {
     signer: anchorService.signer,
     highWater: anchorService.highWater,
     anchors: anchorService.all(),
+    // The public mirror. Absent is a normal state, not an error — see S1-13.
+    amoy: amoyAnchor
+      ? {
+          enabled: true,
+          chainId: amoyDeployment?.chainId,
+          contract: amoyDeployment?.contracts.BatchAnchor,
+          signer: amoyAnchor.signer,
+          highWater: amoyAnchor.highWater,
+          anchors: amoyAnchor.all(),
+          explorer: amoyAnchor
+            .all()
+            .filter((a) => a.txHash)
+            .map((a) => `https://amoy.polygonscan.com/tx/${a.txHash}`),
+        }
+      : { enabled: false, reason: "no deployments/amoy/addresses.json or AMOY_PRIVATE_KEY unset" },
   };
 });
 
@@ -970,6 +1029,21 @@ if (anchorService) {
   // new traffic, so a crash mid-anchor never becomes a double-anchor.
   void anchorService.reconcile().then(async (resolved) => {
     const pre = await anchorService.preflight();
+
+    // Pick up the anchor chain where the contract left it. A gateway restart must not
+    // rewind the batcher to index 0 against a chain that is already past it.
+    if (pre.ok) {
+      try {
+        const head = await anchorService.chainHead();
+        batcher.resume(head.nextIndex, head.prevRoot as Hex);
+        if (head.nextIndex > 0) {
+          app.log.info(head, "resumed the anchor chain from on-chain state");
+        }
+      } catch (error) {
+        app.log.warn({ err: String(error) }, "could not read the anchor head");
+      }
+    }
+
     app.log.info(
       { network: NETWORK, resolved, ...pre },
       pre.ok ? "anchoring enabled" : "anchoring configured but not reachable",
@@ -979,6 +1053,16 @@ if (anchorService) {
   app.log.warn(
     "anchoring disabled — no deployment or no LOCAL_PRIVATE_KEY. Records still verify and batch; lots stay PENDING_ANCHOR.",
   );
+}
+
+if (amoyAnchor) {
+  void amoyAnchor.reconcile().then(async () => {
+    const pre = await amoyAnchor.preflight();
+    app.log.info(
+      { chainId: amoyDeployment?.chainId, ...pre },
+      pre.ok ? "amoy mirror enabled" : "amoy configured but not usable — local demo is unaffected",
+    );
+  });
 }
 
 app

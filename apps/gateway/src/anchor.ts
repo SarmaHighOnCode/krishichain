@@ -77,6 +77,13 @@ export const BATCH_ANCHOR_ABI = [
     inputs: [{ name: "index", type: "uint256" }],
     outputs: [{ name: "", type: "bytes32" }],
   },
+  {
+    type: "function",
+    name: "latestRoot",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
 ] as const;
 
 export type AnchorStatus = "PENDING" | "ANCHORED" | "FAILED";
@@ -355,6 +362,28 @@ export class AnchorService {
       this.options.log.warn({ err: String(error) }, "reconcile could not reach the chain");
     }
     return resolved;
+  }
+
+  /**
+   * Where the anchor chain currently stands.
+   *
+   * The batcher restarts at index 0 with a zero `prevRoot` whenever the gateway restarts,
+   * but the chain has not forgotten anything. Anchoring without asking would revert with
+   * `PrevRootMismatch` on the first batch after every restart — the contract catching a
+   * mistake the gateway should never have made. The demo path has to survive a restart
+   * that does not also reset the chain, because that is what actually happens on the day.
+   */
+  async chainHead(): Promise<{ nextIndex: number; prevRoot: ViemHex }> {
+    const count = await this.onChainCount();
+    if (count === 0) {
+      return { nextIndex: 0, prevRoot: `0x${"00".repeat(32)}` as ViemHex };
+    }
+    const latest = await this.publicClient.readContract({
+      address: this.options.contract,
+      abi: BATCH_ANCHOR_ABI,
+      functionName: "latestRoot",
+    });
+    return { nextIndex: count, prevRoot: latest as ViemHex };
   }
 
   /** Is the chain reachable and does the signer hold ANCHOR_ROLE's practical requirement, gas? */

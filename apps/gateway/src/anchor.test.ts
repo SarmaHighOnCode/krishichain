@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { createPublicClient, http, type Address, type Hex } from "viem";
 
 import { AnchorService, BATCH_ANCHOR_ABI, loadDeployment } from "./anchor.js";
-import type { ClosedBatch } from "./batcher.js";
+import { MerkleBatcher, type ClosedBatch } from "./batcher.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const RPC = process.env.LOCAL_RPC_URL ?? "http://127.0.0.1:8545";
@@ -193,6 +193,37 @@ test("the high-water mark survives a restart", { skip: SKIP }, async () => {
     });
     assert.equal(restarted.highWater, index);
     assert.equal(restarted.anchorFor(index)?.status, "ANCHORED");
+  } finally {
+    rmSync(statePath, { force: true });
+  }
+});
+
+test("a restarted gateway resumes the anchor chain instead of reverting", { skip: SKIP }, async () => {
+  // Regression. The batcher restarts at index 0 with a zero prevRoot on every gateway
+  // restart, but the chain has not forgotten anything. Anchoring without asking reverts
+  // with PrevRootMismatch on the first batch after a restart — and the ingest path looks
+  // perfectly healthy while every proof silently fails to anchor.
+  const { service, statePath } = freshService();
+  try {
+    const index = await anchorCount();
+    await service.submit(await nextBatch(index, "e5"));
+
+    const head = await service.chainHead();
+    assert.equal(head.nextIndex, index + 1, "next batch continues from the chain's head");
+
+    const batcher = new MerkleBatcher({ onBatch: () => {} });
+    batcher.resume(head.nextIndex, head.prevRoot as Hex);
+    batcher.add(`0x${"11".repeat(32)}` as Hex);
+    const closed = await batcher.close("manual");
+    batcher.stop();
+
+    assert.ok(closed);
+    assert.equal(closed.index, head.nextIndex);
+    assert.equal(closed.prevRoot.toLowerCase(), head.prevRoot.toLowerCase());
+
+    // And the anchor it produces is accepted by the contract's prevRoot check.
+    const record = await service.submit(closed);
+    assert.equal(record.status, "ANCHORED", record.error);
   } finally {
     rmSync(statePath, { force: true });
   }
