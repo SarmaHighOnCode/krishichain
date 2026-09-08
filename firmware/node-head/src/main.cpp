@@ -27,6 +27,18 @@
 #include <Preferences.h>
 #endif
 
+// Build-time WiFi/gateway defaults, hardcoded for this deployment.
+// NVS (serial `WIFI ...` / `GW ...`) still wins if set.
+#ifndef KRISHI_WIFI_SSID
+#define KRISHI_WIFI_SSID "Debyte"
+#endif
+#ifndef KRISHI_WIFI_PASS
+#define KRISHI_WIFI_PASS "123456789"
+#endif
+#ifndef KRISHI_GATEWAY_URL
+#define KRISHI_GATEWAY_URL "http://192.168.1.100:3000/api/ingest"
+#endif
+
 using namespace krishi;
 
 static Identity gIdentity;
@@ -46,7 +58,7 @@ static SamplingConfig gSamplingCfg;
 static uint32_t gLastSampleMs = 0;
 static uint32_t gLastUplinkMs = 0;
 static uint32_t gLastHeartbeatMs = 0;
-static char gGatewayUrl[128] = "http://192.168.1.100:3000/api/ingest";
+static char gGatewayUrl[128] = KRISHI_GATEWAY_URL;
 static uint8_t gLotId[16] = {0};
 
 // Swarm heartbeat state (docs/adr/0005-espnow-link-protocol.md section 7, swarm.h).
@@ -193,8 +205,8 @@ void setup() {
 
   Preferences cfg;
   cfg.begin("krishi_cfg", true);
-  String ssid = cfg.getString("ssid", "KrishiGateway");
-  String pass = cfg.getString("pass", "krishipass");
+  String ssid = cfg.getString("ssid", KRISHI_WIFI_SSID);
+  String pass = cfg.getString("pass", KRISHI_WIFI_PASS);
   String gw = cfg.getString("gw", gGatewayUrl);
   strncpy(gGatewayUrl, gw.c_str(), sizeof(gGatewayUrl) - 1);
   cfg.end();
