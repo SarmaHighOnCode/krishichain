@@ -123,11 +123,20 @@ export const DEFAULT_CONSENSUS_CONFIG: ConsensusConfig = {
 /** Per-lot latch, so one episode produces one finding rather than one per record. */
 interface LotState {
   observations: Observation[];
-  /** Kinds already reported for the current episode. Cleared when temperature recovers. */
+  /** Kinds already reported for the current episode. */
   latched: Set<FindingKind>;
   /** Per-device start of an ongoing temperature excursion, device time. */
   excursionStart: Map<string, number>;
+  /**
+   * Device time after which silence means the corroboration episode is over.
+   * Each observation pushes it out by one window; a gap longer than that starts a new
+   * episode and re-arms the consensus findings.
+   */
+  episodeEndsAt: number;
 }
+
+/** Findings that describe a corroboration episode rather than a temperature excursion. */
+const EPISODE_KINDS: FindingKind[] = ["CONSENSUS_BREACH", "SUSPECTED_BREACH", "TAMPER"];
 
 function isUnbound(lot: Hex): boolean {
   return lot.toLowerCase() === ZERO_LOT;
@@ -172,10 +181,12 @@ export class ConsensusEngine {
       }));
       findings.push(...this.trackExcursion(state, record, digest, at));
     } else if (!faulted) {
-      // Back in range: the episode is over, so the latch reopens and a genuinely new
-      // excursion later can be reported again.
+      // Back in range: this device's excursion is over, so a genuinely new one later can be
+      // reported again. Only the temperature finding is re-armed — an open lid does not
+      // stop being an open lid because the thermometer recovered, and clearing the whole
+      // latch here made one breach episode re-report on every cool reading that followed.
       state.excursionStart.delete(record.dev.toLowerCase());
-      state.latched.clear();
+      state.latched.delete("COLD_CHAIN_BREACH");
     }
 
     if (record.flags & Flags.LID_OPEN) {
@@ -271,7 +282,7 @@ export class ConsensusEngine {
     const key = lot.toLowerCase();
     let state = this.lots.get(key);
     if (!state) {
-      state = { observations: [], latched: new Set(), excursionStart: new Map() };
+      state = { observations: [], latched: new Set(), excursionStart: new Map(), episodeEndsAt: 0 };
       this.lots.set(key, state);
     }
     return state;
@@ -279,6 +290,13 @@ export class ConsensusEngine {
 
   /** Record an observation and re-evaluate the consensus rule over the current window. */
   private observe(state: LotState, obs: Observation): Finding[] {
+    // A quiet stretch longer than the window ends the episode: what happens after it is a
+    // new event, not a continuation, and deserves its own incident.
+    if (obs.at > state.episodeEndsAt) {
+      for (const kind of EPISODE_KINDS) state.latched.delete(kind);
+    }
+    state.episodeEndsAt = Math.max(state.episodeEndsAt, obs.at + this.config.windowSeconds);
+
     state.observations.push(obs);
     // Keep the window plus a margin. Bounded memory over a long run, and old evidence
     // cannot silently combine with new.
@@ -371,9 +389,12 @@ export class ConsensusEngine {
   /** Emit a finding at most once per episode. Returns undefined if already reported. */
   private latch(state: LotState, finding: Finding): Finding | undefined {
     if (state.latched.has(finding.kind)) return undefined;
-    // A confirmed breach supersedes the suspicion that preceded it, and re-reporting the
-    // weaker finding afterwards would only add noise to the incident feed.
-    if (finding.kind === "CONSENSUS_BREACH") state.latched.add("SUSPECTED_BREACH");
+    // A confirmed breach supersedes the weaker findings that preceded it, and re-reporting
+    // them afterwards would only add noise to the incident feed.
+    if (finding.kind === "CONSENSUS_BREACH") {
+      state.latched.add("SUSPECTED_BREACH");
+      state.latched.add("TAMPER");
+    }
     state.latched.add(finding.kind);
     return finding;
   }

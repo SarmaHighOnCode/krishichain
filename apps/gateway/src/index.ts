@@ -4,19 +4,45 @@
  * The only component that talks to both the field and the chain — and it trusts neither.
  * Every record is verified before it is stored (ARCHITECTURE §2.3).
  *
- * Current state: ingest + verification + Merkle batching are live against an in-memory
- * store, which is enough to drive the simulator and the web app end to end.
- * Remaining tickets: S1-09 anchor service, S1-10 rules engine, S1-11 query API, S1-12 EPCIS.
+ * Live: ingest, signature and chain verification, relay unwrapping, companion attestations,
+ * the 2-of-3 consensus rules engine, Merkle batching and the MQTT fan-out that drives the
+ * twins dashboard. Remaining: S1-09 anchor service, S1-11 recall subtree, S1-12 EPCIS.
  */
 
-import { decodeRecord, hexToBytes, type Hex, type SensorRecord } from "@krishichain/core";
+import {
+  ALERT_INTERVAL_SECONDS,
+  CALM_INTERVAL_SECONDS,
+  GatewayStore,
+  OFFLINE_AFTER_MS,
+  type StoredRecord,
+} from "./store.js";
+import {
+  COMPANION_VERSION,
+  ConsensusEngine,
+  NodeRole,
+  Topics,
+  type CompanionAttestation,
+  type Finding,
+  type Hex,
+  type NodeRoleValue,
+  type RelayInfo,
+  type SensorRecord,
+} from "@krishichain/core";
 import Fastify from "fastify";
 import { z } from "zod";
 
 import { MerkleBatcher, type ClosedBatch } from "./batcher.js";
-import { MemoryDeviceDirectory, Verifier, type Outcome } from "./pipeline.js";
+import {
+  CompanionVerifier,
+  MemoryDeviceDirectory,
+  Verifier,
+  type CompanionEvidence,
+  type Outcome,
+} from "./pipeline.js";
+import { SwarmPublisher } from "./publisher.js";
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 8080);
+const MQTT_URL = process.env.MQTT_URL ?? "mqtt://127.0.0.1:1883";
 
 const hex = (bytes: number) => z.string().regex(new RegExp(`^0x[0-9a-fA-F]{${bytes * 2}}$`));
 
@@ -34,31 +60,89 @@ const recordSchema = z.object({
   sig: hex(64),
 });
 
+/**
+ * Routing metadata a HEAD adds when forwarding a LEAF's batch.
+ *
+ * Note what is NOT here: any ability to change `dev`, `sig`, `seq` or `prev`. A relay
+ * carries bytes it cannot alter without invalidating them, so verification stays
+ * end-to-end against the origin device's key and the relay never becomes a trusted party
+ * (ADR-0004 §3). Everything in this object is a hint for the map and the health view.
+ */
+const relaySchema = z.object({
+  by: hex(20),
+  rssi: z.number().int().min(-127).max(0).optional(),
+  hops: z.number().int().min(1).max(8).default(1),
+  recvTs: z.number().int().min(0).optional(),
+});
+
 const ingestSchema = z.object({
   v: z.literal(1),
   dev: hex(20),
   records: z.array(recordSchema).min(1).max(100),
+  relay: relaySchema.optional(),
+  /** How many records the node is still holding. Drives the buffer-depth gauge. */
+  buffered: z.number().int().min(0).optional(),
+  role: z.enum(["HEAD", "LEAF", "WITNESS", "VIRTUAL"]).optional(),
+});
+
+const companionSchema = z.object({
+  kind: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  seq: z.number().int().min(0).max(0xffffffff),
+  ts: z.union([z.number(), z.string()]),
+  subjectDev: hex(20),
+  subjectSeq: z.number().int().min(0).max(0xffffffff),
+  subject: hex(32),
+  flags: z.number().int().min(0).max(0xff),
+  payload: hex(32),
+  sig: hex(64),
+  evidence: z
+    .union([
+      z.object({
+        imu: z.object({
+          peakMilliG: z.number().int().min(0).max(0xffff),
+          durationMs: z.number().int().min(0).max(0xffff),
+          sampleHz: z.number().int().min(0).max(0xffff),
+        }),
+      }),
+      z.object({
+        gps: z.object({
+          latMicro: z.number().int().min(-90_000_000).max(90_000_000),
+          lonMicro: z.number().int().min(-180_000_000).max(180_000_000),
+          accuracyCm: z.number().int().min(0).max(0xffff),
+          speedCmS: z.number().int().min(0).max(0xffff),
+        }),
+      }),
+    ])
+    .optional(),
+});
+
+const companionIngestSchema = z.object({
+  v: z.literal(1),
+  dev: hex(20),
+  companions: z.array(companionSchema).min(1).max(50),
 });
 
 // ---------------------------------------------------------------------------
-// State. Ticket S1-06 replaces these with SQLite and an on-chain DeviceRegistry read.
+// State. Ticket S1-06 replaces the in-memory store with SQLite.
 // ---------------------------------------------------------------------------
 
 const devices = new MemoryDeviceDirectory();
 const verifier = new Verifier(devices);
+const companionVerifier = new CompanionVerifier(devices);
 
-interface StoredRecord {
-  record: SensorRecord;
-  digest: Hex;
-  signature: Hex;
-  verdict: string;
-  receivedAt: number;
-}
+const consensus = new ConsensusEngine({
+  tempMaxDeciC: Math.round(Number(process.env.TEMP_MAX_C ?? 10) * 10),
+  tempMinDeciC: Math.round(Number(process.env.TEMP_MIN_C ?? 0) * 10),
+  sustainSeconds: Number(process.env.TEMP_BREACH_SECONDS ?? 30),
+  windowSeconds: Number(process.env.CONSENSUS_WINDOW_SECONDS ?? 60),
+});
 
-const store: StoredRecord[] = [];
-const quarantine: Array<{ record: SensorRecord; reason: string; receivedAt: number }> = [];
+const store = new GatewayStore(consensus);
 const proofs = new Map<string, ClosedBatch>();
 const batches: ClosedBatch[] = [];
+
+const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+const publisher = new SwarmPublisher(MQTT_URL, app.log);
 
 const batcher = new MerkleBatcher({
   maxLeaves: Number(process.env.BATCH_MAX_LEAVES ?? 256),
@@ -67,13 +151,82 @@ const batcher = new MerkleBatcher({
     batches.push(batch);
     for (const proof of batch.proofs) proofs.set(proof.digest.toLowerCase(), batch);
     app.log.info({ index: batch.index, root: batch.root, leaves: batch.leafCount }, "batch closed");
+
+    publisher.anchor({
+      index: batch.index,
+      root: batch.root,
+      prevRoot: batch.prevRoot,
+      leafCount: batch.leafCount,
+      closedAt: batch.closedAt,
+      reason: batch.reason,
+      status: "PENDING",
+    });
+
+    // Lots whose records just became provable move from PENDING_ANCHOR to VERIFIED.
+    for (const lot of store.lots()) publishLot(lot as Hex);
+
     // TODO(S1-09): anchor service — BatchAnchor.anchor(root, leafCount, prevRoot) with a
     // persisted nonce high-water mark. An RPC timeout is NOT a failed transaction; treat it
     // as unknown-state and resolve on the next tick, or you will double-anchor.
   },
 });
 
-const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+const isAnchored = (digest: Hex): boolean => proofs.has(digest.toLowerCase());
+
+function publishLot(lot: Hex): void {
+  publisher.lot(store.lotState(lot, isAnchored));
+}
+
+/**
+ * Turn a rules-engine finding into an incident, publish it, and flag the lot on-chain when
+ * the finding is severe enough to warrant it.
+ *
+ * Only `breach` severity flags. A `warn` is a story one device tells about itself and an
+ * `info` is a single uncorroborated signal; neither is grounds for marking a farmer's
+ * consignment as spoiled, but both are visible on the ops dashboard. Refusing to flag on
+ * weak evidence is as much a part of the product as flagging on strong evidence.
+ */
+function handleFinding(finding: Finding): void {
+  const willFlag = finding.severity === "breach" && store.markFlagged(finding.lot);
+
+  const incident = store.recordIncident({
+    kind: finding.kind,
+    severity: finding.severity,
+    lot: finding.lot,
+    dev: finding.devices[0] ?? null,
+    signals: finding.signals,
+    devices: finding.devices,
+    evidence: finding.evidence,
+    at: finding.at,
+    detail: finding.detail,
+    flagged: willFlag,
+  });
+
+  app.log.warn(
+    { kind: finding.kind, lot: finding.lot, signals: finding.signals, flagged: willFlag },
+    finding.detail,
+  );
+  publisher.incident(incident);
+  publishLot(finding.lot);
+
+  if (willFlag) {
+    // TODO(S1-13): LotRegistry.flagLot(lot, reason, evidenceDigest) once the anchor
+    // service owns a funded signer. The incident is already recorded and published, so
+    // the demo shows the breach whether or not the chain write has landed yet.
+
+    // Adaptive sampling: everything watching this lot speeds up so the incident is
+    // captured at higher resolution while it is still happening (ADR-0004 §4).
+    for (const node of store.allNodes()) {
+      store.seeNode(node.dev, { intervalSeconds: ALERT_INTERVAL_SECONDS });
+      publisher.command(node.dev, {
+        cmd: "INTERVAL",
+        seconds: ALERT_INTERVAL_SECONDS,
+        issuedAt: Date.now(),
+        reason: `${finding.kind} on lot ${finding.lot.slice(0, 10)}`,
+      });
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -81,35 +234,63 @@ const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
 
 app.get("/health", async () => ({
   ok: true,
-  records: store.length,
-  quarantined: quarantine.length,
+  records: store.records.length,
+  companions: store.companions.length,
+  quarantined: store.quarantine.length,
   batches: batches.length,
   pendingLeaves: batcher.pendingCount,
+  mqtt: publisher.isConnected,
 }));
 
 /** Commissioning helper. Ticket S1-06 reads DeviceRegistry on-chain instead. */
 app.post("/devices", async (request, reply) => {
-  const body = z.object({ address: hex(20) }).safeParse(request.body);
+  const body = z
+    .object({
+      address: hex(20),
+      role: z.enum(["HEAD", "LEAF", "WITNESS", "VIRTUAL"]).optional(),
+      lat: z.number().optional(),
+      lon: z.number().optional(),
+    })
+    .safeParse(request.body);
   if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
 
-  devices.register(body.data.address as Hex);
-  return { registered: body.data.address };
+  const address = body.data.address as Hex;
+  devices.register(address);
+  const info = store.seeNode(address, {
+    role: (body.data.role ?? NodeRole.HEAD) as NodeRoleValue,
+    ...(body.data.lat !== undefined ? { lat: body.data.lat } : {}),
+    ...(body.data.lon !== undefined ? { lon: body.data.lon } : {}),
+  });
+  publisher.health(store.healthEvent(info));
+
+  return { registered: address, role: info.role };
 });
 
-/** PROTOCOL.md §3.2 — batch upload from a node. */
+/** PROTOCOL.md §3.2 — batch upload from a node, optionally forwarded by a HEAD. */
 app.post("/ingest", async (request, reply) => {
   const parsed = ingestSchema.safeParse(request.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: "malformed batch", detail: parsed.error.flatten() });
   }
 
-  const { dev, records } = parsed.data;
+  const { dev, records, relay, buffered, role } = parsed.data;
+  const origin = dev as Hex;
+  const relayInfo = relay as RelayInfo | undefined;
   const outcomes: Outcome[] = [];
+  const findings: Finding[] = [];
+  const touchedLots = new Set<string>();
+
+  // A relay is a node too: hearing it forward someone else's traffic is evidence it is
+  // alive, and the map needs it even when it has nothing of its own to report.
+  if (relayInfo) {
+    const head = store.seeNode(relayInfo.by, { role: NodeRole.HEAD });
+    publisher.health(store.healthEvent(head));
+  }
 
   for (const raw of records) {
     const record: SensorRecord = {
       v: 1,
-      dev: dev as Hex,
+      dev: origin,
       seq: raw.seq,
       prev: raw.prev as Hex,
       ts: BigInt(raw.ts),
@@ -126,22 +307,75 @@ app.post("/ingest", async (request, reply) => {
     outcomes.push(outcome);
 
     if (outcome.status === "rejected") {
-      quarantine.push({ record, reason: outcome.reason, receivedAt: Date.now() });
+      store.quarantine.push({
+        dev: origin,
+        seq: record.seq,
+        reason: outcome.reason,
+        ...(outcome.detail !== undefined ? { detail: outcome.detail } : {}),
+        receivedAt: Date.now(),
+      });
       continue;
     }
 
-    store.push({
+    const entry: StoredRecord = {
       record,
       digest: outcome.digest,
       signature: raw.sig as Hex,
       verdict: outcome.verdict,
+      ...(outcome.detail !== undefined ? { detail: outcome.detail } : {}),
+      ...(relayInfo ? { relay: relayInfo } : {}),
       receivedAt: Date.now(),
-    });
-    batcher.add(outcome.digest);
+    };
 
-    // TODO(S1-10): rules engine — cold-chain threshold and tamper flags raise an incident and
-    // call LotRegistry.flagLot within 10 s of the causing record (GW-07).
+    findings.push(...store.addRecord(entry));
+    batcher.add(outcome.digest);
+    touchedLots.add(record.lot.toLowerCase());
+
+    const info = store.node(origin);
+    publisher.record({
+      dev: origin,
+      role: info?.role ?? NodeRole.HEAD,
+      seq: record.seq,
+      digest: outcome.digest,
+      lot: record.lot,
+      ts: record.ts.toString(),
+      tsq: record.tsq,
+      t: record.t,
+      h: record.h,
+      lux: record.lux,
+      flags: record.flags,
+      bat: record.bat,
+      verdict: outcome.verdict,
+      ...(relayInfo ? { relay: relayInfo } : {}),
+      receivedAt: entry.receivedAt,
+    });
+
+    // A gap or a fork is never swallowed into a log line (CLAUDE.md invariant 5).
+    if (outcome.verdict !== "ACCEPT" && outcome.verdict !== "DUPLICATE") {
+      const incident = store.recordIncident({
+        kind: outcome.verdict,
+        severity: outcome.verdict === "CHAIN_FORK" ? "breach" : "warn",
+        lot: record.lot,
+        dev: origin,
+        signals: [],
+        devices: [origin],
+        evidence: [outcome.digest],
+        at: Number(record.ts),
+        detail: outcome.detail ?? outcome.verdict,
+        flagged: false,
+      });
+      publisher.incident(incident);
+    }
   }
+
+  const info = store.seeNode(origin, {
+    ...(role ? { role: role as NodeRoleValue } : {}),
+    ...(buffered !== undefined ? { bufferDepth: buffered } : {}),
+  });
+  publisher.health(store.healthEvent(info));
+
+  for (const finding of findings) handleFinding(finding);
+  for (const lot of touchedLots) publishLot(lot as Hex);
 
   const rejected = outcomes.filter((o) => o.status === "rejected");
   // An unregistered or revoked device gets 401 so the node stops retrying and buffers
@@ -152,30 +386,122 @@ app.post("/ingest", async (request, reply) => {
 
   const incidents = outcomes
     .filter((o) => o.status === "accepted" && o.verdict !== "ACCEPT")
-    .map((o) => ({ verdict: (o as { verdict: string }).verdict, detail: (o as { detail?: string }).detail }));
+    .map((o) => ({
+      verdict: (o as { verdict: string }).verdict,
+      detail: (o as { detail?: string }).detail,
+    }));
 
-  const body = {
+  return reply.code(unauthorised ? 401 : 200).send({
     accepted: outcomes.filter((o) => o.status === "accepted").length,
-    rejected: rejected.map((o) => (o.status === "rejected" ? { seq: o.record.seq, reason: o.reason } : null)),
+    rejected: rejected.map((o) =>
+      o.status === "rejected" ? { seq: o.record.seq, reason: o.reason } : null,
+    ),
     incidents,
-    ackSeq: verifier.ackSeq(dev as Hex),
+    findings: findings.map((f) => ({ kind: f.kind, severity: f.severity, detail: f.detail })),
+    ackSeq: verifier.ackSeq(origin),
+    intervalSeconds: info.intervalSeconds,
     serverTs: Math.floor(Date.now() / 1000),
-  };
+  });
+});
 
-  return reply.code(unauthorised ? 401 : 200).send(body);
+/**
+ * Companion attestations from a CAM witness or a phone — ticket S1-14.
+ *
+ * Separate endpoint from `/ingest` because these are a different kind of claim: not "here
+ * is what I measured" but "here is what I saw about someone else's measurement". They are
+ * verified the same way and stored beside the record, never inside it.
+ */
+app.post("/companion", async (request, reply) => {
+  const parsed = companionIngestSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return reply.code(400).send({ error: "malformed companions", detail: parsed.error.flatten() });
+  }
+
+  const witness = parsed.data.dev as Hex;
+  const results: Array<{ seq: number; status: string; reason?: string }> = [];
+  const findings: Finding[] = [];
+
+  for (const raw of parsed.data.companions) {
+    const companion: CompanionAttestation = {
+      v: COMPANION_VERSION,
+      kind: raw.kind,
+      dev: witness,
+      seq: raw.seq,
+      ts: BigInt(raw.ts),
+      subjectDev: raw.subjectDev as Hex,
+      subjectSeq: raw.subjectSeq,
+      subject: raw.subject as Hex,
+      flags: raw.flags,
+      payload: raw.payload as Hex,
+    };
+
+    const outcome = companionVerifier.ingest(
+      companion,
+      raw.sig as Hex,
+      raw.evidence as CompanionEvidence,
+    );
+
+    if (outcome.status === "rejected") {
+      store.quarantine.push({
+        dev: witness,
+        seq: raw.seq,
+        reason: outcome.reason,
+        ...(outcome.detail !== undefined ? { detail: outcome.detail } : {}),
+        receivedAt: Date.now(),
+      });
+      results.push({ seq: raw.seq, status: "rejected", reason: outcome.reason });
+      continue;
+    }
+
+    const { stored, findings: found } = store.addCompanion({
+      companion,
+      digest: outcome.digest,
+      signature: raw.sig as Hex,
+      ...(outcome.imu !== undefined ? { imu: outcome.imu } : {}),
+      receivedAt: Date.now(),
+    });
+
+    findings.push(...found);
+    publisher.companion(store.companionEvent(stored, true));
+    results.push({ seq: raw.seq, status: stored.lot ? "accepted" : "accepted-orphan" });
+  }
+
+  const info = store.seeNode(witness, { role: NodeRole.WITNESS });
+  publisher.health(store.healthEvent(info));
+
+  for (const finding of findings) handleFinding(finding);
+
+  const unauthorised = results.some(
+    (r) => r.reason === "UNKNOWN_DEVICE" || r.reason === "REVOKED_DEVICE",
+  );
+
+  return reply.code(unauthorised ? 401 : 200).send({
+    accepted: results.filter((r) => r.status.startsWith("accepted")).length,
+    results,
+    findings: findings.map((f) => ({ kind: f.kind, severity: f.severity, detail: f.detail })),
+    pendingSubjects: store.orphanCount,
+    serverTs: Math.floor(Date.now() / 1000),
+  });
 });
 
 /** Everything the consumer page needs for one lot. Ticket S1-11 adds the recall subtree. */
 app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => {
-  const lotId = request.params.lotId.toLowerCase();
-  const records = store.filter((entry) => entry.record.lot.toLowerCase() === lotId);
+  const lotId = request.params.lotId.toLowerCase() as Hex;
+  const records = store.recordsForLot(lotId);
   if (records.length === 0) return reply.code(404).send({ error: "unknown lot" });
+
+  const state = store.lotState(lotId, isAnchored);
 
   return {
     lotId,
+    badge: state.badge,
+    flagged: state.flagged,
     recordCount: records.length,
+    devices: state.devices,
+    incidents: store.incidents.filter((i) => i.lot?.toLowerCase() === lotId),
     records: records.map((entry) => ({
       seq: entry.record.seq,
+      dev: entry.record.dev,
       ts: entry.record.ts.toString(),
       tsq: entry.record.tsq,
       t: entry.record.t,
@@ -184,7 +510,15 @@ app.get<{ Params: { lotId: string } }>("/lot/:lotId", async (request, reply) => 
       flags: entry.record.flags,
       digest: entry.digest,
       verdict: entry.verdict,
-      anchored: proofs.has(entry.digest.toLowerCase()),
+      anchored: isAnchored(entry.digest),
+      ...(entry.relay ? { relay: entry.relay } : {}),
+      companions: store.companionsFor(entry.digest).map((c) => ({
+        dev: c.companion.dev,
+        kind: c.companion.kind,
+        flags: c.companion.flags,
+        payload: c.companion.payload,
+        digest: c.digest,
+      })),
     })),
   };
 });
@@ -216,18 +550,99 @@ app.post("/anchor/flush", async () => {
   return { closed: batch?.index ?? null, root: batch?.root ?? null };
 });
 
-app.get("/ops/summary", async () => ({
-  records: store.length,
-  quarantined: quarantine.length,
-  batches: batches.length,
-  pendingLeaves: batcher.pendingCount,
-  lastRoot: batcher.lastRoot,
-  incidents: store.filter((entry) => entry.verdict !== "ACCEPT").length,
+app.get("/ops/summary", async () => {
+  const now = Date.now();
+  return {
+    records: store.records.length,
+    companions: store.companions.length,
+    orphanCompanions: store.orphanCount,
+    quarantined: store.quarantine.length,
+    batches: batches.length,
+    pendingLeaves: batcher.pendingCount,
+    lastRoot: batcher.lastRoot,
+    incidents: store.incidents.length,
+    breaches: store.incidents.filter((i) => i.severity === "breach").length,
+    mqtt: { connected: publisher.isConnected, dropped: publisher.droppedCount },
+    nodes: store.allNodes().map((info) => ({
+      ...store.healthEvent(info, now),
+      relayedBy: info.relayedBy ?? null,
+    })),
+  };
+});
+
+app.get("/ops/incidents", async () => ({ incidents: store.incidents }));
+
+app.get("/ops/nodes", async () => {
+  const now = Date.now();
+  return { nodes: store.allNodes().map((info) => store.healthEvent(info, now)) };
+});
+
+/** Manual adaptive-sampling control, so the behaviour can be shown on demand. */
+app.post("/ops/interval", async (request, reply) => {
+  const body = z
+    .object({ dev: hex(20).optional(), seconds: z.number().int().min(1).max(3600) })
+    .safeParse(request.body);
+  if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
+
+  const targets = body.data.dev
+    ? [store.node(body.data.dev as Hex)].filter((n) => n !== undefined)
+    : store.allNodes();
+
+  for (const node of targets) {
+    store.seeNode(node.dev, { intervalSeconds: body.data.seconds });
+    publisher.command(node.dev, {
+      cmd: "INTERVAL",
+      seconds: body.data.seconds,
+      issuedAt: Date.now(),
+      reason: "operator request",
+    });
+  }
+
+  return { updated: targets.map((n) => n.dev), seconds: body.data.seconds };
+});
+
+// ---------------------------------------------------------------------------
+// Liveness. A node that stops reporting must go grey on the dashboard within 5 s
+// (S2-12 acceptance) — which means the gateway has to notice silence, not just
+// react to traffic. Nothing else would ever publish that transition.
+// ---------------------------------------------------------------------------
+
+const heartbeat = setInterval(() => {
+  const now = Date.now();
+  for (const info of store.allNodes()) {
+    publisher.health(store.healthEvent(info, now));
+  }
+}, Math.max(1000, Math.floor(OFFLINE_AFTER_MS / 2)));
+heartbeat.unref();
+
+// Calm everything back down once a demo is reset.
+app.post("/ops/calm", async () => {
+  for (const node of store.allNodes()) {
+    store.seeNode(node.dev, { intervalSeconds: CALM_INTERVAL_SECONDS });
+    publisher.command(node.dev, {
+      cmd: "INTERVAL",
+      seconds: CALM_INTERVAL_SECONDS,
+      issuedAt: Date.now(),
+      reason: "calm",
+    });
+  }
+  return { seconds: CALM_INTERVAL_SECONDS };
+});
+
+app.get("/topics", async () => ({
+  prefix: "krishi/v1",
+  broker: { tcp: MQTT_URL, ws: process.env.MQTT_WS_URL ?? "ws://127.0.0.1:9001" },
+  subscribe: {
+    records: Topics.allRecords,
+    health: Topics.allHealth,
+    companions: Topics.allCompanions,
+    lots: Topics.allLots,
+    incidents: Topics.incident,
+    anchors: Topics.anchor,
+  },
 }));
 
-// Keep the unused-import linter honest about helpers the next tickets will need.
-void decodeRecord;
-void hexToBytes;
+publisher.start();
 
 app
   .listen({ port: PORT, host: "0.0.0.0" })

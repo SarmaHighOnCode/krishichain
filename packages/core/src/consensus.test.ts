@@ -167,6 +167,46 @@ test("a breach supersedes the suspicion that preceded it", () => {
   assert.deepEqual(kinds(second), ["CONSENSUS_BREACH"]);
 });
 
+test("one breach episode reports once, however long it runs", () => {
+  // Regression. The latch used to be cleared by any in-range temperature reading, so a
+  // breach driven by lid + shock re-fired on every cool record that followed it — four
+  // identical CONSENSUS_BREACH incidents for one event in the first swarm run.
+  const engine = new ConsensusEngine();
+  const all: Finding[] = [];
+
+  all.push(...feed(engine, record({ seq: 1, t: 180, ts: BigInt(T0) })));
+  all.push(...witness(engine, companion({ ts: BigInt(T0 + 2) })));
+  assert.deepEqual(kinds(all), ["CONSENSUS_BREACH"]);
+
+  // Temperature recovers while the lid is still open, and the CAM keeps reporting it.
+  for (let i = 1; i <= 6; i++) {
+    all.push(...feed(engine, record({ seq: 1 + i, t: 45, ts: BigInt(T0 + i * 5) })));
+    all.push(...witness(engine, companion({ seq: 1 + i, ts: BigInt(T0 + i * 5) })));
+  }
+
+  assert.deepEqual(kinds(all), ["CONSENSUS_BREACH"], "still exactly one incident");
+});
+
+test("a genuinely separate episode later reports again", () => {
+  const engine = new ConsensusEngine({ windowSeconds: 60 });
+  const first = [
+    ...feed(engine, record({ seq: 1, t: 180, ts: BigInt(T0) })),
+    ...witness(engine, companion({ ts: BigInt(T0 + 2) })),
+  ];
+  assert.deepEqual(kinds(first), ["CONSENSUS_BREACH"]);
+
+  // The crate cools down and the lid is shut: the episode ends.
+  assert.deepEqual(kinds(feed(engine, record({ seq: 2, t: 45, ts: BigInt(T0 + 30) }))), []);
+
+  // An hour later it happens again. That is news, not an echo.
+  const later = T0 + 3600;
+  const second = [
+    ...feed(engine, record({ seq: 3, t: 180, ts: BigInt(later) })),
+    ...witness(engine, companion({ seq: 2, ts: BigInt(later + 2) })),
+  ];
+  assert.deepEqual(kinds(second), ["CONSENSUS_BREACH"]);
+});
+
 // ---------------------------------------------------------------------------
 // Windowing
 // ---------------------------------------------------------------------------

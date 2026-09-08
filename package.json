@@ -23,7 +23,9 @@
     "deploy:local": "npm run deploy:local -w contracts",
     "deploy:amoy": "npm run deploy:amoy -w contracts",
     "gen:vectors": "tsx scripts/gen-vectors.ts",
+    "broker": "tsx scripts/broker.ts",
     "sim": "tsx scripts/sim-node.ts",
+    "sim-swarm": "tsx scripts/sim-swarm.ts",
     "seed": "tsx scripts/seed.ts",
     "e2e": "tsx scripts/e2e-demo.ts",
     "device:register": "tsx scripts/register-device.ts"

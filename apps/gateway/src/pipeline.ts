@@ -20,11 +20,18 @@
 
 import {
   checkChain,
+  companionDigest,
   EMPTY_CHAIN_STATE,
+  gpsEvidenceHash,
+  imuEvidenceHash,
+  verifyCompanion,
   verifyRecord,
   type ChainState,
   type ChainVerdict,
+  type CompanionAttestation,
+  type GpsEvidence,
   type Hex,
+  type ImuEvidence,
   type SensorRecord,
 } from "@krishichain/core";
 
@@ -130,5 +137,97 @@ export class Verifier {
    */
   ackSeq(device: Hex): number {
     return this.chainState(device).lastSeq ?? 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Companions — ticket S1-14.
+// ---------------------------------------------------------------------------
+
+export type CompanionRejectReason = RejectReason | "PAYLOAD_MISMATCH" | "REPLAY";
+
+/** Evidence a witness sends in the clear so we can check it against what it signed. */
+export type CompanionEvidence = { imu: ImuEvidence } | { gps: GpsEvidence } | undefined;
+
+export interface CompanionAccepted {
+  status: "accepted";
+  companion: CompanionAttestation;
+  digest: Hex;
+  imu?: ImuEvidence;
+}
+
+export interface CompanionRejected {
+  status: "rejected";
+  companion: CompanionAttestation;
+  reason: CompanionRejectReason;
+  detail?: string;
+}
+
+export type CompanionOutcome = CompanionAccepted | CompanionRejected;
+
+/**
+ * Verifies witness attestations.
+ *
+ * Same step order as records and for the same reasons — membership before curve
+ * arithmetic, verification before storage. One extra step at the end: if the witness sent
+ * its evidence in the clear, we recompute the hash and check it against the `payload` it
+ * signed. A device that signs one set of numbers and reports another is caught here rather
+ * than being quietly believed, which matters because those numbers vote in the consensus
+ * rule.
+ */
+export class CompanionVerifier {
+  /** (dev, seq, subject) already seen. Companions carry no chain, so replay is caught here. */
+  private readonly seen = new Set<string>();
+
+  constructor(private readonly devices: DeviceDirectory) {}
+
+  ingest(
+    companion: CompanionAttestation,
+    signature: Hex,
+    evidence?: CompanionEvidence,
+  ): CompanionOutcome {
+    if (!this.devices.isKnown(companion.dev)) {
+      return { status: "rejected", companion, reason: "UNKNOWN_DEVICE" };
+    }
+    if (!this.devices.isActive(companion.dev)) {
+      return { status: "rejected", companion, reason: "REVOKED_DEVICE" };
+    }
+
+    const verified = verifyCompanion(companion, signature);
+    if (!verified.ok) {
+      return { status: "rejected", companion, reason: "BAD_SIGNATURE", detail: verified.reason };
+    }
+
+    let imu: ImuEvidence | undefined;
+    if (evidence !== undefined) {
+      const expected =
+        "imu" in evidence ? imuEvidenceHash(evidence.imu) : gpsEvidenceHash(evidence.gps);
+      if (expected.toLowerCase() !== companion.payload.toLowerCase()) {
+        return {
+          status: "rejected",
+          companion,
+          reason: "PAYLOAD_MISMATCH",
+          detail: `evidence hashes to ${expected}, signed payload is ${companion.payload}`,
+        };
+      }
+      if ("imu" in evidence) imu = evidence.imu;
+    }
+
+    // A PHOTO carries no separate evidence: the payload IS the image hash, and the image
+    // never leaves the device. We can only attest that the hash we show is the hash that
+    // was signed — which is exactly the claim the consumer page makes.
+    const key = `${companion.dev.toLowerCase()}:${companion.seq}:${companion.subject.toLowerCase()}`;
+    if (this.seen.has(key)) {
+      return { status: "rejected", companion, reason: "REPLAY" };
+    }
+    this.seen.add(key);
+
+    const accepted: CompanionAccepted = {
+      status: "accepted",
+      companion,
+      digest: companionDigest(companion),
+    };
+    if (imu !== undefined) accepted.imu = imu;
+    return accepted;
   }
 }
