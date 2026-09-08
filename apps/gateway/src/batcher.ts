@@ -40,6 +40,20 @@ export class MerkleBatcher {
     this.maxMs = (options.maxSeconds ?? 60) * 1000;
   }
 
+  /**
+   * Continue an anchor chain that already exists on-chain.
+   *
+   * Called at startup with the chain's own head. Without it a restarted gateway would
+   * offer batch 0 with a zero `prevRoot` to a contract that is already at index 7, and
+   * every anchor would revert — the demo silently losing its proofs while the ingest path
+   * looked perfectly healthy. Only meaningful before the first batch closes.
+   */
+  resume(nextIndex: number, prevRoot: Hex): void {
+    if (this.index !== 0) return;
+    this.index = nextIndex;
+    this.prevRoot = prevRoot;
+  }
+
   /** Queue a record digest as a leaf. Closes the batch when it hits the size limit. */
   add(digest: Hex): void {
     this.pending.push(digest);

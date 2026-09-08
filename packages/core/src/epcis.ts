@@ -53,6 +53,8 @@ export interface EpcisObjectEvent {
   "krishi:digest"?: Hex;
   "krishi:timeQuality"?: number;
   "krishi:seq"?: number;
+  /** Present on breach events: which rule fired. */
+  "krishi:incident"?: string;
 }
 
 /** GS1 EPC URI for a lot. Real deployments carry an assigned GS1 company prefix. */
@@ -99,6 +101,54 @@ export function recordToEpcisEvent(record: SensorRecord, digest?: Hex): EpcisObj
   };
   if (digest) event["krishi:digest"] = digest;
   return event;
+}
+
+/**
+ * Project a breach into its own EPCIS event — ticket S1-12.
+ *
+ * A recall system needs to see the finding, not re-derive it from a temperature series.
+ * `inspecting` + `damaged` is the vocabulary EPCIS already has for exactly this, so we use
+ * it rather than inventing a KrishiChain-specific step.
+ */
+export function incidentToEpcisEvent(
+  lot: Hex,
+  at: number,
+  kind: string,
+  evidence?: Hex,
+): EpcisObjectEvent {
+  const event: EpcisObjectEvent = {
+    type: "ObjectEvent",
+    eventTime: new Date(at * 1000).toISOString(),
+    eventTimeZoneOffset: "+00:00",
+    action: "OBSERVE",
+    bizStep: "inspecting",
+    disposition: "damaged",
+    epcList: [lotToEpcUri(lot)],
+    "krishi:incident": kind,
+  };
+  if (evidence) event["krishi:digest"] = evidence;
+  return event;
+}
+
+/**
+ * Aggregation: child lots rolled into a parent. The "forty smallholders' crates become one
+ * shipment" event, and the one a recall traverses backwards.
+ */
+export function aggregationToEpcisEvent(
+  parent: Hex,
+  children: Hex[],
+  at: number,
+): Record<string, unknown> {
+  return {
+    type: "AggregationEvent",
+    eventTime: new Date(at * 1000).toISOString(),
+    eventTimeZoneOffset: "+00:00",
+    action: "ADD",
+    bizStep: "packing",
+    disposition: "in_progress",
+    parentID: lotToEpcUri(parent),
+    childEPCs: children.map((child) => lotToEpcUri(child)),
+  };
 }
 
 /** Wrap events in an EPCIS document. */

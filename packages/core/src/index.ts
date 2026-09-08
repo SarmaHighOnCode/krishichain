@@ -9,5 +9,8 @@ export * from "./types.js";
 export * from "./record.js";
 export * from "./crypto.js";
 export * from "./chain.js";
+export * from "./companion.js";
+export * from "./consensus.js";
+export * from "./swarm.js";
 export * from "./merkle.js";
 export * from "./epcis.js";
