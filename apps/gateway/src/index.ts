@@ -5,8 +5,9 @@
  * Every record is verified before it is stored (ARCHITECTURE §2.3).
  *
  * Live: ingest, signature and chain verification, relay unwrapping, companion attestations,
- * the 2-of-3 consensus rules engine, Merkle batching and the MQTT fan-out that drives the
- * twins dashboard. Remaining: S1-09 anchor service, S1-11 recall subtree, S1-12 EPCIS.
+ * the 2-of-3 consensus rules engine, Merkle batching, on-chain anchoring and the MQTT
+ * fan-out that drives the twins dashboard.
+ * Remaining: S1-11 recall subtree, S1-12 EPCIS, S1-13 Amoy.
  */
 
 import {
@@ -28,9 +29,14 @@ import {
   type RelayInfo,
   type SensorRecord,
 } from "@krishichain/core";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { config as loadEnv } from "dotenv";
 import Fastify from "fastify";
 import { z } from "zod";
 
+import { AnchorService, loadDeployment, type AnchorRecord } from "./anchor.js";
 import { MerkleBatcher, type ClosedBatch } from "./batcher.js";
 import {
   CompanionVerifier,
@@ -40,6 +46,13 @@ import {
   type Outcome,
 } from "./pipeline.js";
 import { SwarmPublisher } from "./publisher.js";
+
+// Repo-root .env, the same file the contracts workspace reads. Nobody should have to
+// export variables by hand to get a working demo on a fresh clone. Safe here despite
+// import hoisting: no imported module reads process.env at load time, and everything in
+// this file that does runs below.
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+loadEnv({ path: join(REPO_ROOT, ".env") });
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 8080);
 const MQTT_URL = process.env.MQTT_URL ?? "mqtt://127.0.0.1:1883";
@@ -144,6 +157,50 @@ const batches: ClosedBatch[] = [];
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
 const publisher = new SwarmPublisher(MQTT_URL, app.log);
 
+// ---------------------------------------------------------------------------
+// Anchoring — ticket S1-09.
+//
+// Optional on purpose. If no chain is deployed the gateway still ingests, verifies,
+// chains and batches; lots simply stay at PENDING_ANCHOR. A missing local chain must
+// degrade the demo, not stop it.
+// ---------------------------------------------------------------------------
+
+const NETWORK = process.env.ANCHOR_NETWORK ?? "localhost";
+const deployment = loadDeployment(NETWORK, REPO_ROOT);
+
+const anchorService =
+  deployment?.contracts.BatchAnchor && process.env.LOCAL_PRIVATE_KEY
+    ? new AnchorService({
+        rpcUrl: process.env.LOCAL_RPC_URL ?? "http://127.0.0.1:8545",
+        privateKey: process.env.LOCAL_PRIVATE_KEY as Hex,
+        contract: deployment.contracts.BatchAnchor,
+        chainId: deployment.chainId,
+        statePath: process.env.ANCHOR_STATE_PATH ?? join(REPO_ROOT, "data", "anchor-state.json"),
+        log: app.log,
+        onUpdate: (record) => publishAnchor(record),
+      })
+    : undefined;
+
+function publishAnchor(record: AnchorRecord): void {
+  const batch = batches.find((b) => b.index === record.index);
+  publisher.anchor({
+    index: record.index,
+    root: record.root as Hex,
+    prevRoot: record.prevRoot as Hex,
+    leafCount: record.leafCount,
+    closedAt: batch?.closedAt ?? record.updatedAt,
+    reason: batch?.reason ?? "manual",
+    status: record.status,
+    ...(deployment ? { chainId: deployment.chainId } : {}),
+    ...(record.txHash ? { txHash: record.txHash as Hex } : {}),
+    ...(record.blockNumber ? { blockNumber: record.blockNumber } : {}),
+    ...(record.error ? { error: record.error } : {}),
+  });
+  if (record.status === "ANCHORED") {
+    for (const lot of store.lots()) publishLot(lot as Hex);
+  }
+}
+
 const batcher = new MerkleBatcher({
   maxLeaves: Number(process.env.BATCH_MAX_LEAVES ?? 256),
   maxSeconds: Number(process.env.BATCH_MAX_SECONDS ?? 60),
@@ -165,9 +222,11 @@ const batcher = new MerkleBatcher({
     // Lots whose records just became provable move from PENDING_ANCHOR to VERIFIED.
     for (const lot of store.lots()) publishLot(lot as Hex);
 
-    // TODO(S1-09): anchor service — BatchAnchor.anchor(root, leafCount, prevRoot) with a
-    // persisted nonce high-water mark. An RPC timeout is NOT a failed transaction; treat it
-    // as unknown-state and resolve on the next tick, or you will double-anchor.
+    // The local chain is the path the demo depends on, so it is awaited. The service
+    // queues internally, so batches anchor in order and never race for a `prevRoot`.
+    void anchorService?.submit(batch).catch((error) => {
+      app.log.error({ err: String(error), index: batch.index }, "anchor submit threw");
+    });
   },
 });
 
@@ -533,6 +592,8 @@ app.get<{ Params: { digest: string } }>("/proof/:digest", async (request, reply)
   );
   if (!entry) return reply.code(404).send({ error: "proof missing" });
 
+  const anchored = anchorService?.anchorFor(batch.index);
+
   return {
     digest: entry.digest,
     root: entry.root,
@@ -540,8 +601,41 @@ app.get<{ Params: { digest: string } }>("/proof/:digest", async (request, reply)
     index: entry.index,
     leafCount: entry.leafCount,
     anchorIndex: batch.index,
-    // TODO(S1-09): include { chainId, txHash, blockNumber } once anchoring is live.
+    // Everything the browser needs to read the root from a public RPC and check our work
+    // without asking us anything (PROTOCOL.md §4.1). If `status` is not ANCHORED the page
+    // must say PENDING ANCHOR rather than implying a commitment that does not exist yet.
+    anchor: anchored
+      ? {
+          status: anchored.status,
+          chainId: deployment?.chainId ?? null,
+          contract: deployment?.contracts.BatchAnchor ?? null,
+          txHash: anchored.txHash ?? null,
+          blockNumber: anchored.blockNumber ?? null,
+        }
+      : { status: "PENDING", chainId: deployment?.chainId ?? null, contract: deployment?.contracts.BatchAnchor ?? null, txHash: null, blockNumber: null },
   };
+});
+
+/** Anchor state, for the ops dashboard and for debugging a stuck chain write. */
+app.get("/ops/anchors", async () => {
+  if (!anchorService) {
+    return { enabled: false, reason: "no deployment found or LOCAL_PRIVATE_KEY unset", anchors: [] };
+  }
+  return {
+    enabled: true,
+    network: NETWORK,
+    chainId: deployment?.chainId,
+    contract: deployment?.contracts.BatchAnchor,
+    signer: anchorService.signer,
+    highWater: anchorService.highWater,
+    anchors: anchorService.all(),
+  };
+});
+
+/** Resolve anchors whose outcome we never learned. Never sends a transaction. */
+app.post("/ops/reconcile", async () => {
+  if (!anchorService) return { enabled: false, resolved: 0 };
+  return { enabled: true, resolved: await anchorService.reconcile() };
 });
 
 /** Force-close the open batch. Used by the demo script so nothing waits 60 s on stage. */
@@ -643,6 +737,22 @@ app.get("/topics", async () => ({
 }));
 
 publisher.start();
+
+if (anchorService) {
+  // Anything left PENDING by a previous run is resolved against the chain before we take
+  // new traffic, so a crash mid-anchor never becomes a double-anchor.
+  void anchorService.reconcile().then(async (resolved) => {
+    const pre = await anchorService.preflight();
+    app.log.info(
+      { network: NETWORK, resolved, ...pre },
+      pre.ok ? "anchoring enabled" : "anchoring configured but not reachable",
+    );
+  });
+} else {
+  app.log.warn(
+    "anchoring disabled — no deployment or no LOCAL_PRIVATE_KEY. Records still verify and batch; lots stay PENDING_ANCHOR.",
+  );
+}
 
 app
   .listen({ port: PORT, host: "0.0.0.0" })

@@ -14,6 +14,7 @@
     "@krishichain/core": "*",
     "aedes": "^1.1.2",
     "aedes-server-factory": "^0.2.1",
+    "dotenv": "^16.6.1",
     "fastify": "^5.2.0",
     "mqtt": "^5.15.2",
     "viem": "^2.21.0",
