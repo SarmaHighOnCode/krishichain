@@ -36,12 +36,23 @@
   /* --- extension: the four verification states, not covered by DESIGN.md --- */
   --status-verified: var(--color-deep-green);
   --status-verified-wash: var(--color-pale-green);
-  --status-pending: var(--color-slate);
+  --status-pending: var(--color-slate-strong);
   --status-pending-wash: var(--color-stone);
-  --status-flagged: #b5461c; /* coral darkened for AA text contrast on --status-flagged-wash */
+  --status-flagged: #9c3c17; /* coral darkened further (S2-10) — 4.67:1 on --status-flagged-wash
+                                 read fine on a lab monitor but thin for FLAGGED, the one status
+                                 that most needs to be unmissable in direct sun; now ~5.9:1 */
   --status-flagged-wash: #ffe9e2;
   --status-unverifiable: var(--color-error);
   --status-unverifiable-wash: #fbe6e4;
+
+  /* S2-10: --color-slate (#75758a) is DESIGN.md's token, used verbatim in a few decorative
+     spots, but its text contrast is borderline-to-failing on the light washes/chips this page
+     uses it on: ~3.8:1 on --color-stone (fails AA's 4.5:1 — this is what made the old
+     --status-pending badge and the `code` chip hard to read on a phone), and only ~4.5:1 on
+     white. --color-slate-strong is the same hue darkened for those text uses; ~7.3:1 on
+     --color-stone, ~8.7:1 on white. Introduced here rather than editing --color-slate itself,
+     to avoid moving anything outside this ticket's scope. */
+  --color-slate-strong: #4a4a5c;
 
   /* --- DESIGN.md: radius scale --- */
   --radius-xs: 4px;
@@ -120,7 +131,7 @@ h2 {
   font-size: 0.78rem;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--color-slate);
+  color: var(--color-slate-strong);
   margin: 0 0 var(--space-sm);
 }
 
@@ -205,9 +216,17 @@ a {
 code {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  color: var(--color-slate);
+  color: var(--color-slate-strong); /* was --color-slate: ~3.8:1 on this chip's background,
+                                        below AA's 4.5:1 minimum (S2-10) */
   background: var(--color-stone);
   padding: 0.1em 0.35em;
   border-radius: var(--radius-xs);
-  word-break: break-all;
+  /* S2-10: was `word-break: break-all`, which breaks at *every* character boundary once a line
+     is tight — including short words like the `amoy` network chip, which split "am"/"oy" at
+     360px even though the whole word would have fit on the next line. overflow-wrap only forces
+     a break when a run of text has no natural break point (spaces, hyphens) AND would overflow
+     the line on its own — exactly the 32-byte hex digest / full lotId case this rule exists for
+     — while leaving short tokens like `amoy` to wrap as a whole word. */
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
