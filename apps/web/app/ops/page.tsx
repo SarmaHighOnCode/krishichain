@@ -20,8 +20,11 @@ export default async function OpsPage() {
 
   return (
     <div className="ops-page">
-      <h1>Ops dashboard</h1>
-      <p className="muted">Field node health, buffer depth and incidents — live from the gateway.</p>
+      {/* Visually replaced by <OpsDashboard>'s own hero heading — kept for a11y/SEO heading
+          hierarchy without showing a duplicate title on screen. Network/gateway context now
+          lives in the shared DashboardTopbar (app/ops/layout.tsx) since it applies to
+          /ops/labels too, not just this page. */}
+      <h1 className="sr-only">Ops dashboard</h1>
 
       <OpsDashboard initialSummary={initialSummary} />
     </div>
