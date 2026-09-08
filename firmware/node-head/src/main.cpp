@@ -115,12 +115,19 @@ static Record readSensors() {
 static void runUplinkCycle() {
   if (gRingBuffer.isEmpty()) return;
 
-  uint8_t canonicals[kMaxUplinkBatch * kCanonicalLength];
-  uint8_t sigs[kMaxUplinkBatch * kSignatureLength];
+  // static, not stack. These three buffers total ~25KB (9000 + 6400 + ~9600) and
+  // Arduino's loopTask stack is 8192 bytes, so a frame this size overflows the moment
+  // this function is entered — the frame is reserved on entry, before the early-return
+  // above can spare it. It smashes whatever lives below the stack and the board resets
+  // by watchdog (TG1WDT_SYS_RESET) a few seconds after boot, with no panic to explain
+  // it. Static also honours CLAUDE.md's "fixed buffers only" rule for this path:
+  // loop() is single-threaded and this function is not reentrant.
+  static uint8_t canonicals[kMaxUplinkBatch * kCanonicalLength];
+  static uint8_t sigs[kMaxUplinkBatch * kSignatureLength];
   size_t count = gRingBuffer.peekCanonical(canonicals, sigs, kMaxUplinkBatch);
   if (count == 0) return;
 
-  Record records[kMaxUplinkBatch];
+  static Record records[kMaxUplinkBatch];
   for (size_t i = 0; i < count; ++i) {
     decodeRecord(canonicals + i * kCanonicalLength, kCanonicalLength, records[i]);
   }
@@ -226,13 +233,24 @@ void setup() {
     }
   }
 
+  // Boot trace. There is no debugger on a board in a crate, and a reset during setup()
+  // is otherwise indistinguishable from a reset before it — these six lines are what
+  // localised a 6MB-partition-table-on-4MB-flash bootloop and a 25KB stack overflow to
+  // the exact call that caused each. Boot-once, not in loop(), so they cost nothing.
+  Serial.printf("[boot %lu] wifi phase done, status=%d\n", millis(), (int)WiFi.status());
+
   gIdentity.begin(gKeyStore);
+  Serial.printf("[boot %lu] identity done\n", millis());
+
   gChain.begin(gChainStore);
   gFlashStore.sectorSize(); // init partition check
   gRingBuffer.begin(gFlashStore);
+  Serial.printf("[boot %lu] ringbuffer done\n", millis());
 
   gLink.beginHead(WiFi.channel());
+  Serial.printf("[boot %lu] espnow up on channel %u\n", millis(), WiFi.channel());
   gUplink.begin(gGatewayUrl);
+  Serial.printf("[boot %lu] setup complete\n", millis());
 
   if (gIdentity.wasCommissionedThisBoot()) {
     char addrHex[43];
