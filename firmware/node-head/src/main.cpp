@@ -11,6 +11,9 @@
 #include "identity.h"
 #include "chain.h"
 #include "store/flash_store.h"
+#ifndef KRISHI_NATIVE
+#include "store/esp_flash_store.h"
+#endif
 #include "ringbuffer.h"
 #include "link/espnow.h"
 #include "link/frame.h"
@@ -29,7 +32,9 @@ static Identity gIdentity;
 static NvsKeyStore gKeyStore;
 static Chain gChain;
 static NvsChainStore gChainStore;
+#ifndef KRISHI_NATIVE
 static EspFlashStore gFlashStore;
+#endif
 static RingBuffer gRingBuffer;
 static EspNowLink gLink;
 static HeartbeatTracker gTracker;
@@ -66,7 +71,7 @@ static void updateLed() {
   if (now - lastToggle >= interval) {
     lastToggle = now;
     pinOn = !pinOn;
-    digitalWrite(PINS_HEAD::STATUS_LED, pinOn ? HIGH : LOW);
+    digitalWrite(pins::kStatusLed, pinOn ? HIGH : LOW);
   }
 #endif
 }
@@ -74,7 +79,7 @@ static void updateLed() {
 static uint8_t readFlagsNow() {
   uint8_t flags = 0;
 #ifndef KRISHI_NATIVE
-  if (digitalRead(PINS_HEAD::TAMPER_LID) == HIGH) flags |= kFlagLidOpen;
+  if (digitalRead(pins::kReedSwitch) == HIGH) flags |= kFlagLidOpen;
 #endif
   return flags;
 }
@@ -167,8 +172,8 @@ static void handleSerialCli() {
 void setup() {
 #ifndef KRISHI_NATIVE
   Serial.begin(115200);
-  pinMode(PINS_HEAD::STATUS_LED, OUTPUT);
-  pinMode(PINS_HEAD::TAMPER_LID, INPUT_PULLUP);
+  pinMode(pins::kStatusLed, OUTPUT);
+  pinMode(pins::kReedSwitch, INPUT_PULLUP);
 
   Preferences cfg;
   cfg.begin("krishi_cfg", true);

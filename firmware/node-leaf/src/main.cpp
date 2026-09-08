@@ -11,6 +11,9 @@
 #include "identity.h"
 #include "chain.h"
 #include "store/flash_store.h"
+#ifndef KRISHI_NATIVE
+#include "store/esp_flash_store.h"
+#endif
 #include "ringbuffer.h"
 #include "link/espnow.h"
 #include "link/frame.h"
@@ -27,7 +30,9 @@ static Identity gIdentity;
 static NvsKeyStore gKeyStore;
 static Chain gChain;
 static NvsChainStore gChainStore;
+#ifndef KRISHI_NATIVE
 static EspFlashStore gFlashStore;
+#endif
 static RingBuffer gRingBuffer;
 static EspNowLink gLink;
 static SamplingState gSamplingState;
@@ -62,7 +67,7 @@ static void updateLed() {
   if (now - lastToggle >= interval) {
     lastToggle = now;
     pinOn = !pinOn;
-    digitalWrite(PINS_LEAF::STATUS_LED, pinOn ? HIGH : LOW);
+    digitalWrite(pins::kStatusLed, pinOn ? HIGH : LOW);
   }
 #endif
 }
@@ -70,7 +75,7 @@ static void updateLed() {
 static uint8_t readFlagsNow() {
   uint8_t flags = 0;
 #ifndef KRISHI_NATIVE
-  if (digitalRead(PINS_LEAF::TAMPER_LID) == HIGH) flags |= kFlagLidOpen;
+  // Leaf node tamper lid optional/not fitted
 #endif
   return flags;
 }
@@ -120,8 +125,7 @@ static void sendRecordsCycle() {
 void setup() {
 #ifndef KRISHI_NATIVE
   Serial.begin(115200);
-  pinMode(PINS_LEAF::STATUS_LED, OUTPUT);
-  pinMode(PINS_LEAF::TAMPER_LID, INPUT_PULLUP);
+  pinMode(pins::kStatusLed, OUTPUT);
 
   gIdentity.begin(gKeyStore);
   gChain.begin(gChainStore);
