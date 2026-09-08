@@ -50,7 +50,7 @@ projector, breach tool (USB fan / hand warmer) within reach, backup board in you
   updates.
 
 > "The transporter can't hide this, and the buyer can't invent it. It's signed by the device and
-> anchored on a public chain."
+> anchored on-chain."
 
 ## 3:00–3:45 · The offline test ★
 
@@ -110,8 +110,8 @@ For a judging-floor slot, not the main stage. Budget: hook (15 s) → verificati
 (35–40 s) → honest failure (20 s) → cost and close (15–20 s). Runs entirely on
 `npm run dev` + `npm run sim`; a physical node in hand helps but isn't required for this cut.
 
-**Pre-demo checklist for this cut:** run `npm run deploy:local` (or `deploy:amoy`) *before* you
-start talking, so `deployments/<network>/addresses.json` exists. If it doesn't, the **Verify
+**Pre-demo checklist for this cut:** run `npm run deploy:local` *before* you
+start talking, so `deployments/localhost/addresses.json` exists. If it doesn't, the **Verify
 independently** button never appears — the verify page renders an honest **Not deployed** card
 instead, and the script below adapts at the ★ beat rather than faking a green badge.
 

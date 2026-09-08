@@ -27,8 +27,11 @@ secp256k1 private key generated on-device that never leaves the chip. Every read
 and hash-chained to its predecessor, so records cannot be silently dropped, reordered or
 back-dated — including during the hours a rural node spends offline. A gateway verifies each
 signature and the chain continuity, batches records into a Merkle tree, and anchors **one
-transaction per 256+ readings** to a public chain. A consumer scanning the crate's QR code gets
+transaction per 256+ readings** on-chain. A consumer scanning the crate's QR code gets
 a phone-side proof verification that does not require trusting our backend.
+
+This build anchors to a local chain, deliberately — the same contracts deploy unchanged to a
+public network, and §12 R2 records why that trade was made and what it costs the claim.
 
 The deliverable is two working physical nodes, four smart contracts, a verification gateway, a
 consumer verification page and an ops dashboard — plus an honest, defensible account of exactly
@@ -103,7 +106,7 @@ UI, because a technical judge will find it in 30 seconds otherwise.
 | P3 | **Iqbal** — cold-chain transporter | Paid per trip, blamed for spoilage | "Prove the breach happened before I loaded — or never happened at all" | A gapless signed record no counterparty can edit |
 | P4 | **Meera** — retail QA lead | Regulatory + recall exposure | "In a recall, find every lot that touched truck 27 between the 3rd and 5th — in minutes" | Query by device, lot, actor or time window; export an audit bundle |
 | P5 | **Arjun** — consumer | In an aisle, 15 seconds of patience | "Is this actually what the label says?" | Scan → journey + a badge he can re-check himself |
-| P6 | **Auditor / regulator** | Trusts nobody, including us | "Verify the claim without asking the vendor for permission" | Public chain anchors + an open verify script; no KrishiChain account needed |
+| P6 | **Auditor / regulator** | Trusts nobody, including us | "Verify the claim without asking the vendor for permission" | Chain anchors + an open verify script; no KrishiChain account needed |
 
 ---
 

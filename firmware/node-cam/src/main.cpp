@@ -249,7 +249,7 @@ void setup() {
   Serial.printf("device address: %s\n", address_hex);
   if (identity.wasCommissionedThisBoot()) {
     Serial.println("*** NEWLY COMMISSIONED — register this address on-chain:");
-    Serial.printf("    npm run device:register -- --address %s --class CAM_V1\n", address_hex);
+    Serial.printf("    npm run device:register -- --address %s --class WITNESS\n", address_hex);
   }
 
   chain.begin();
