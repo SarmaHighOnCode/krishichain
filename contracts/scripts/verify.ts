@@ -50,13 +50,26 @@ async function main(): Promise<void> {
   const { ActorRegistry, DeviceRegistry, LotRegistry, BatchAnchor } = deployment.contracts;
 
   // Constructor arguments, straight from deploy.ts: ActorRegistry takes the admin, and the
-  // other three take the ActorRegistry address.
-  const targets: Array<{ name: string; address: string; args: unknown[] }> = [
-    { name: "ActorRegistry", address: ActorRegistry!, args: [deployment.deployer] },
-    { name: "DeviceRegistry", address: DeviceRegistry!, args: [ActorRegistry] },
-    { name: "LotRegistry", address: LotRegistry!, args: [ActorRegistry] },
-    { name: "BatchAnchor", address: BatchAnchor!, args: [ActorRegistry] },
+  // others take the ActorRegistry address.
+  //
+  // Only verify what was actually deployed. An anchor-only deployment (the default for a
+  // public testnet — see deploy.ts) has no DeviceRegistry or LotRegistry, and trying to
+  // verify an undefined address fails in a way that looks like a verification problem
+  // rather than the absence it is.
+  const candidates: Array<{ name: string; address: string | undefined; args: unknown[] }> = [
+    { name: "ActorRegistry", address: ActorRegistry, args: [deployment.deployer] },
+    { name: "DeviceRegistry", address: DeviceRegistry, args: [ActorRegistry] },
+    { name: "LotRegistry", address: LotRegistry, args: [ActorRegistry] },
+    { name: "BatchAnchor", address: BatchAnchor, args: [ActorRegistry] },
   ];
+
+  const targets = candidates.filter(
+    (c): c is { name: string; address: string; args: unknown[] } => typeof c.address === "string",
+  );
+  const skipped = candidates.filter((c) => typeof c.address !== "string").map((c) => c.name);
+  if (skipped.length > 0) {
+    console.log(`  not deployed on this network, skipping: ${skipped.join(", ")}\n`);
+  }
 
   let failed = 0;
   for (const target of targets) {
