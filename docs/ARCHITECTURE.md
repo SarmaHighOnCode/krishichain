@@ -27,7 +27,7 @@ flowchart TB
   DB[("Event store<br/>records · proofs · incidents · EPCIS")]
   Q[("Quarantine<br/>rejected records")]
 
-  subgraph CHAIN["CHAIN — local Anvil + Polygon Amoy"]
+  subgraph CHAIN["CHAIN — local Hardhat node"]
     DR["DeviceRegistry"]
     AR["ActorRegistry"]
     LR["LotRegistry"]
@@ -174,8 +174,10 @@ then sends one transaction. Nonce is managed locally with a persisted high-water
 timeout cannot produce a double-anchor. An anchor is only marked confirmed after receipt, and
 `prevRoot` chaining means a lost anchor is detectable rather than silent.
 
-**Dual-chain writes:** the gateway writes anchors to the local chain synchronously (demo path)
-and to Amoy asynchronously (credibility path). Amoy failure degrades the badge to
+**Anchoring:** the gateway writes anchors to the local chain synchronously. A dual-chain
+design (local + Polygon Amoy, local synchronous and Amoy fired-and-forgotten) was built and
+deliberately dropped — see `TEAM-PLAN.md` §6, cut item 5 — leaving one chain and no risk of
+two writers racing for a shared signer's nonce. A missing chain degrades the badge to
 `PENDING ANCHOR`; it never blocks ingest.
 
 ### 2.4 Contracts (`contracts/`)
@@ -242,22 +244,20 @@ projects is claiming boundary 1 is solved.
 
 ## 4. Deployment topology
 
-**Demo (default, offline-capable):**
+**Demo (the only topology — local-only by decision, not just by default):**
 
 ```
 ESP32 ×2 ──WiFi(hotspot)──> Laptop
                              ├── gateway  :8080
                              ├── local chain (hardhat node) :8545
-                             └── web :3000
-                                   └── also reads Amoy RPC when internet exists
+                             └── web :3000 (reads the chain node directly, not the gateway)
 ```
 
-Everything the demo needs runs on one laptop. Internet upgrades the demo; its absence never
-breaks it (NFR-09).
-
-**Cloud (for the shareable link):** `apps/web` on Vercel, gateway reachable through a tunnel,
-contracts on Polygon Amoy. This exists so judges can open the project on their own phones after
-the pitch.
+Everything the demo needs runs on one laptop, with no internet dependency at all (NFR-09).
+A cloud/public-chain topology (`apps/web` on Vercel, gateway through a tunnel, contracts on
+Polygon Amoy — for a shareable post-pitch link) was scoped and then dropped; see
+`TEAM-PLAN.md` §6, cut item 5. If it's worth revisiting later, the working implementation is
+in git history.
 
 ---
 

@@ -26,11 +26,10 @@
  * mismatch, which is a second net under the first — but a contract revert is a bad place
  * to discover a bug the service should have prevented.
  *
- * LOCAL SYNCHRONOUSLY, AMOY ASYNCHRONOUSLY. The demo must work with no internet
- * (CLAUDE.md invariant 6), so the local chain is the path the demo depends on and it is
- * awaited. Amoy is the shareable, publicly verifiable path and is fired off in the
- * background: if the venue WiFi is hostile, the demo is unaffected and the explorer link
- * simply arrives late.
+ * LOCAL ONLY, DELIBERATELY. The demo must work with no internet (CLAUDE.md invariant 6),
+ * so the chain this anchors to is the local Hardhat node the gateway already depends on.
+ * A public mirror (Polygon Amoy) was built and then descoped — see TEAM-PLAN.md §6, cut
+ * item 5 — so there is exactly one chain here, not two racing for a shared signer's nonce.
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";

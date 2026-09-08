@@ -54,7 +54,6 @@ npm run dev              # local chain + gateway + web, all three
 npm test                 # all workspaces
 npm run chain            # hardhat node only
 npm run deploy:local     # deploy contracts to the local chain
-npm run deploy:amoy      # deploy to Polygon Amoy
 npm run sim              # simulated node → gateway (no hardware needed)
 npm run seed             # seed a demo lot journey
 npm run e2e              # full pipeline test, no hardware

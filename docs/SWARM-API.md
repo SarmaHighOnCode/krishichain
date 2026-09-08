@@ -130,45 +130,23 @@ said otherwise.
 
 ---
 
-## Anchoring: two chains, two different questions
+## Anchoring: local, and only local
 
-Every batch is anchored **twice**, and the two answer different questions:
+A public mirror (Polygon Amoy) was built, then deliberately dropped — see
+`TEAM-PLAN.md` §6, cut item 5. The local Hardhat chain was always the demo path
+(invariant 6: the demo must work with no internet), so this removes a dependency
+without removing anything the demo actually relied on.
 
-| | Question it answers | Speed | Drives |
-|---|---|---|---|
-| **Local** (Hardhat, 31337) | "Can we vouch for this?" | Instant | The `badge` |
-| **Amoy** (Polygon testnet, 80002) | "Can a stranger check it without us?" | Seconds to a minute | `publicAnchor` |
+**`VERIFIED` means the anchor transaction has CONFIRMED on the local chain** — not that
+a Merkle batch closed. Those are different claims and only the first is worth anything;
+a closed batch is a promise the gateway made to itself. With no chain configured
+nothing reaches `VERIFIED` and lots sit at `PENDING_ANCHOR`, which is the honest answer
+rather than a bug.
 
-Amoy is the **verification target** — a root on a chain we do not control is the only
-version of this claim that means anything to a judge. Local is the **offline fallback** that
-keeps the demo alive when the venue WiFi is hostile (invariant 6).
-
-**`VERIFIED` means the local anchor transaction has CONFIRMED** — not that a Merkle batch
-closed. Those are different claims and only the first is worth anything; a closed batch is a
-promise the gateway made to itself. With no chain configured nothing reaches `VERIFIED` and
-lots sit at `PENDING_ANCHOR`, which is the honest answer rather than a bug.
-
-The public status rides separately on `LotStateEvent.publicAnchor`, so a slow testnet never
-drags the badge backwards:
-
-```ts
-publicAnchor?: {
-  chainId: number;
-  status: "PENDING" | "ANCHORED" | "FAILED";
-  contract?: Hex; txHash?: Hex; blockNumber?: string;
-  explorerUrl?: string;   // ready to put in front of a judge
-}
-```
-
-Absent `publicAnchor` means no mirror is configured. **Render that as "local only", never as
-a failure** — it is a normal setup.
-
-`GET /proof/:digest` returns `anchors: { local, public }`. The proof is identical on both
-chains — same leaves, same tree, same batch index; only the root's *location* differs. So:
-verify against `anchors.public` when it is `ANCHORED`, fall back to `anchors.local` when the
-public chain is unreachable, and show `PENDING ANCHOR` when neither has landed. A lot is only
-as committed as its least-committed record, so one pending record holds the whole lot at
-pending rather than letting a majority round it up.
+`GET /proof/:digest` returns `anchors: { local }`, where `local` carries `chainId`
+(31337), `contract`, `status`, `txHash`, `blockNumber` and `rpcUrl`. Verify against it
+when `status` is `ANCHORED`; show `PENDING ANCHOR` otherwise, and never imply a
+commitment that does not exist yet.
 
 ## Client-side verification (S2-03)
 
@@ -182,9 +160,12 @@ import { recordDigest, verifyProof } from "@krishichain/core";
 // 1. Recompute the leaf from the record you are SHOWING the user.
 const leaf = recordDigest({ ...r, ts: BigInt(r.ts) });
 
-// 2. Read the root from the chain — NOT from `proof.root`.
+// 2. Read the root from the chain — NOT from `proof.root`. A different process
+//    (the local chain node, port 8545) than the one that served the record (the
+//    gateway, port 8080) — that separation is what makes this a real check rather
+//    than the gateway grading its own homework.
 const root = await client.readContract({
-  address: proof.anchors.public.contract,   // or .local when offline
+  address: proof.anchors.local.contract,
   abi: [{ type: "function", name: "getRoot", stateMutability: "view",
           inputs: [{ name: "index", type: "uint256" }], outputs: [{ type: "bytes32" }] }],
   functionName: "getRoot",
@@ -225,7 +206,8 @@ not broken (`S2-04`).
 
 The gateway's own `badge` is a summary. The claim that actually matters is `S2-03`:
 the browser recomputing the leaf and walking the proof against a root read **straight from
-a public RPC**. The gateway never vouches for that, and the page should not imply it does.
+the chain node — a separate process from the gateway**. The gateway never vouches for
+that, and the page should not imply it does.
 
 ---
 

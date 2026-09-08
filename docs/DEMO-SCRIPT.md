@@ -32,10 +32,13 @@ projector, breach tool (USB fan / hand warmer) within reach, backup board in you
 *This is the beat the whole project exists for. Do not rush it.*
 
 - Tap **Verify independently**.
-- Narrate as it runs: "The page just fetched the Merkle root straight from Polygon, not from our
-  server. It's recomputing the hash of this reading and walking the proof up the tree in your
-  browser. Green."
-- **Then kill the gateway process on the laptop.** Reload the page. Tap verify again. Still green.
+- Narrate as it runs: "The page just fetched the Merkle root straight from our chain node —
+  a **separate process** from the one that served the record, running on this laptop but
+  outside our control the moment it started. It's recomputing the hash of this reading and
+  walking the proof up the tree in your browser. Green."
+- **Then kill the gateway process on the laptop.** Reload the page. Tap verify again. Still
+  green — the chain node is still up, and the browser was never talking to the gateway for
+  this part anyway.
 
 > "Our backend is dead and verification still works. That's the point — you never had to trust us."
 
@@ -92,8 +95,7 @@ projector, breach tool (USB fan / hand warmer) within reach, backup board in you
 | If this breaks | Do this |
 |---|---|
 | A node dies | Swap the pre-flashed backup board (`H2-09`). Keep talking; it takes 30 s. |
-| Venue WiFi fails | Phone hotspot. Everything runs on the laptop anyway (NFR-09). |
-| Amoy RPC is down | Demo on the local chain. Say so plainly and show the explorer link on the slide. |
+| Venue WiFi fails | Phone hotspot — though the demo never needs internet at all (NFR-09). |
 | The breach is too slow | Cut to the offline test, come back to the breach at the end. |
 | Everything fails | Play the recorded run. Then hand a judge the node and walk the architecture. |
 

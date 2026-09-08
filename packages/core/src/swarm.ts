@@ -157,25 +157,6 @@ export interface CompanionEvent {
   receivedAt: number;
 }
 
-/**
- * Where a lot's commitment lives on a public chain.
- *
- * Separate from `badge` on purpose. The badge answers "can we vouch for this?", which the
- * local chain settles in milliseconds. This answers "can a stranger check it without us?",
- * which is a different and slower question — a public testnet lags, rate-limits and
- * occasionally fails. Collapsing the two would either make the badge crawl or make it lie.
- */
-export interface PublicAnchorRef {
-  chainId: number;
-  status: "PENDING" | "ANCHORED" | "FAILED";
-  /** Contract holding the root. */
-  contract?: Hex;
-  txHash?: Hex;
-  blockNumber?: string;
-  /** Block explorer link, ready to put in front of a judge. */
-  explorerUrl?: string;
-}
-
 export interface LotStateEvent {
   lot: Hex;
   badge: BadgeValue;
@@ -189,12 +170,6 @@ export interface LotStateEvent {
   devices: Hex[];
   /** Signal classes currently corroborating a breach, if any. */
   signals: BreachSignal[];
-  /**
-   * Public-chain commitment, when a public mirror is configured. Absent means no mirror,
-   * which is a normal configuration and NOT a failure — render it as "local only", never
-   * as a problem.
-   */
-  publicAnchor?: PublicAnchorRef;
   updatedAt: number;
 }
 

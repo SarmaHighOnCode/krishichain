@@ -81,19 +81,6 @@ GW http://192.168.1.50:8080
 Find the laptop's LAN IP with `ipconfig` (Windows) or `ip addr` (Linux/macOS). The node needs the
 **LAN** address, not `localhost`.
 
-## Deploying to Polygon Amoy
-
-1. Put a funded Amoy key in `.env` as `AMOY_PRIVATE_KEY`, and an RPC URL as `AMOY_RPC_URL`.
-2. Fund it from a faucet (Alchemy or QuickNode — the official Polygon faucet is retired).
-   **Do this at least 48 h before demo day** (risk R2).
-
-```bash
-npm run deploy:amoy
-```
-
-Addresses are written to `deployments/amoy/` and **are committed** — the web app reads them to
-fetch anchor roots client-side.
-
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

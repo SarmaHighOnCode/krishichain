@@ -15,7 +15,6 @@ import {
   TimeQuality,
   ZERO_DIGEST,
   type Hex,
-  type PublicAnchorRef,
   type SensorRecord,
 } from "@krishichain/core";
 
@@ -106,68 +105,4 @@ test("an empty lot is never VERIFIED", () => {
   const state = store.lotState(LOT, always);
   assert.equal(state.recordCount, 0);
   assert.notEqual(state.badge, "VERIFIED");
-});
-
-// ---------------------------------------------------------------------------
-// Public anchor, reported separately from the badge.
-// ---------------------------------------------------------------------------
-
-const publicRef = (status: PublicAnchorRef["status"]): PublicAnchorRef => ({
-  chainId: 80002,
-  status,
-  contract: `0x${"ab".repeat(20)}` as Hex,
-});
-
-test("no public mirror configured means no publicAnchor field", () => {
-  const store = fresh();
-  push(store, 0);
-  // Absent is a normal configuration, not a failure — the page renders "local only".
-  assert.equal(store.lotState(LOT, always).publicAnchor, undefined);
-});
-
-test("a fully mirrored lot reports its public anchor", () => {
-  const store = fresh();
-  push(store, 0);
-  push(store, 1);
-
-  const state = store.lotState(LOT, always, () => publicRef("ANCHORED"));
-  assert.equal(state.publicAnchor?.status, "ANCHORED");
-  assert.equal(state.publicAnchor?.chainId, 80002);
-});
-
-test("one record still pending publicly holds the public status at PENDING", () => {
-  const store = fresh();
-  const first = push(store, 0);
-  push(store, 1);
-
-  const mixed = (digest: Hex) =>
-    digest.toLowerCase() === first.toLowerCase() ? publicRef("ANCHORED") : publicRef("PENDING");
-
-  assert.equal(store.lotState(LOT, always, mixed).publicAnchor?.status, "PENDING");
-});
-
-test("a failed public anchor is reported, not rounded up", () => {
-  const store = fresh();
-  const first = push(store, 0);
-  push(store, 1);
-
-  const mixed = (digest: Hex) =>
-    digest.toLowerCase() === first.toLowerCase() ? publicRef("FAILED") : publicRef("ANCHORED");
-
-  assert.equal(store.lotState(LOT, always, mixed).publicAnchor?.status, "FAILED");
-});
-
-test("the public anchor never changes the badge", () => {
-  // The two claims are deliberately independent: the badge says what we can vouch for, the
-  // public anchor says whether a stranger can check it without us. A slow testnet must not
-  // drag the badge backwards.
-  const store = fresh();
-  push(store, 0);
-
-  const withPending = store.lotState(LOT, always, () => publicRef("PENDING"));
-  const withAnchored = store.lotState(LOT, always, () => publicRef("ANCHORED"));
-
-  assert.equal(withPending.badge, "VERIFIED");
-  assert.equal(withAnchored.badge, "VERIFIED");
-  assert.equal(withPending.publicAnchor?.status, "PENDING");
 });

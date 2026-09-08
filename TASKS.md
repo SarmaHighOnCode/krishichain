@@ -209,11 +209,13 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 
 ### `S1-09` · Anchor service [P0] [3h]
 - **Accept** Persisted nonce high-water mark; survives an RPC timeout without double-anchoring;
-  writes local chain synchronously and Amoy asynchronously.
+  writes to the local chain. (A dual-write to Amoy was built and dropped — `S1-13`, cut.)
 
 ### `S1-10` · Rules engine [P0] [2h] — breach ≤ 10 s after the causing record
 ### `S1-11` · Query API [P0] [3h] · `S1-12` · EPCIS projection [P1] [3h]
-### `S1-13` · Amoy deploy + funded key [P1] [2h] — **hour 30, not hour 46**
+### ~~`S1-13` · Amoy deploy + funded key~~ — **cut.** Demo is local-only; see `TEAM-PLAN.md`
+§6 cut item 5 and the "why blockchain at all" answer in `docs/JUDGING.md`. The working
+implementation is in git history if the team revisits this.
 
 ---
 
@@ -254,7 +256,6 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 ### `GATE-2` · Hour 38 [ALL] [P0] [4h]
 - [ ] Full demo run end to end, twice, timed
 - [ ] Offline test · tamper test · unverifiable test all pass
-- [ ] Amoy live with an explorer link
 - [ ] Backup board ready, fallback video recorded
 
 **Code freeze: hour 44.**

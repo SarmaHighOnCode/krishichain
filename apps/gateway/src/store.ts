@@ -28,7 +28,6 @@ import {
   type IncidentEvent,
   type LotStateEvent,
   type NodeRoleValue,
-  type PublicAnchorRef,
   type RelayInfo,
   type SensorRecord,
 } from "@krishichain/core";
@@ -296,19 +295,15 @@ export class GatewayStore {
   /**
    * Roll a lot up for the dashboard and the consumer page.
    *
-   * Both chain lookups are injected rather than read here, because the store's job is to
-   * know what was observed, not what has been committed. That split is why this class has
-   * no RPC client and stays trivially testable.
+   * `isAnchored` is injected rather than read here, because the store's job is to know
+   * what was observed, not what has been committed. That split is why this class has no
+   * RPC client and stays trivially testable.
    *
-   * `isAnchored` must mean "the anchor transaction CONFIRMED", not "the Merkle batch
-   * closed". Those are different claims and only the first one is worth anything: a closed
-   * batch is a promise we made to ourselves.
+   * It must mean "the anchor transaction CONFIRMED", not "the Merkle batch closed". Those
+   * are different claims and only the first one is worth anything: a closed batch is a
+   * promise we made to ourselves.
    */
-  lotState(
-    lot: Hex,
-    isAnchored: (digest: Hex) => boolean,
-    publicAnchorFor?: (digest: Hex) => PublicAnchorRef | undefined,
-  ): LotStateEvent {
+  lotState(lot: Hex, isAnchored: (digest: Hex) => boolean): LotStateEvent {
     const records = this.recordsForLot(lot);
     const temps = records
       .map((r) => r.record.t)
@@ -328,25 +323,12 @@ export class GatewayStore {
     const badge: BadgeValue = badgeFor({
       hasGapOrFork,
       // The gateway's own proofs always verify — it built them. The claim that matters is
-      // the browser re-deriving the root from a public RPC, which is S2-03's job and is
+      // the browser re-deriving the root from the chain, which is S2-03's job and is
       // deliberately not something we assert on its behalf here.
       proofVerified: true,
       anchored,
       flagged,
     });
-
-    // The weakest public commitment across the lot's records is the one that counts: a lot
-    // is only publicly checkable once ALL of it is, so a single PENDING record holds the
-    // whole lot at PENDING rather than letting a majority round it up to ANCHORED.
-    const publicRefs = publicAnchorFor
-      ? records.map((r) => publicAnchorFor(r.digest)).filter((ref) => ref !== undefined)
-      : [];
-    const publicAnchor =
-      publicRefs.length > 0 && publicRefs.length === records.length
-        ? (publicRefs.find((ref) => ref.status === "FAILED") ??
-          publicRefs.find((ref) => ref.status === "PENDING") ??
-          publicRefs[publicRefs.length - 1])
-        : publicRefs[0];
 
     return {
       lot,
@@ -358,7 +340,6 @@ export class GatewayStore {
       flagged,
       devices: [...new Set(records.map((r) => r.record.dev.toLowerCase()))] as Hex[],
       signals: snapshot.signals,
-      ...(publicAnchor ? { publicAnchor } : {}),
       updatedAt: Date.now(),
     };
   }

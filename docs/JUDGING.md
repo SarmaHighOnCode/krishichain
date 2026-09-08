@@ -17,13 +17,25 @@ actually understand it.**
 
 ### "Why does this need a blockchain at all? A signed database does the same thing."
 
-Honest answer, and it scores well: *a signed append-only log covers 80% of it.* The blockchain
-adds three things a private log cannot: (1) no single party — including us — can withhold or
-rewrite the commitment history, (2) the disputing parties do not have to agree on who hosts the
-log, and (3) a consumer or regulator can verify without our permission or our uptime. In a
-supply chain the whole problem is that **the parties don't trust each other**. That is the
-narrow case where a shared ledger earns its cost. And we use it for exactly 32 bytes per 256
-readings — not as a database.
+Honest answer, and it scores well: *a signed append-only log covers 80% of it.* A **public**
+shared ledger would add three more things a private log cannot: no single party — including
+us — can withhold or rewrite the commitment history; the disputing parties do not have to
+agree on who hosts the log; a consumer or regulator can verify without our permission or our
+uptime. In a supply chain the whole problem is that **the parties don't trust each other**.
+That is the narrow case where a shared ledger earns its cost.
+
+**Say this next part before they ask it, not after — it is item 6 on our own self-critique
+list.** For this demo the chain is local, on this laptop, deliberately: a public testnet's
+faucet or RPC being down on stage was a worse risk than the honesty cost of running local, and
+the whole system is designed to survive with zero internet either way. Run as demoed, we are
+the only party operating the chain, so the first two properties above do not fully hold today
+— we say that plainly rather than let a judge catch it. What still holds, and what we show
+live: verification is independent of the *server*. The browser reads the anchor root from a
+separate chain-node process it queries directly — never from the gateway, never trusting our
+API's word for it — so killing our backend mid-demo does not break verification. The
+contracts are exactly what a public deployment would run; pointing them at Polygon Amoy is a
+network config change, not a redesign, and it is the very next thing we would do. We use the
+chain for exactly 32 bytes per 256 readings, not as a database.
 
 ### "Your sensor could just be sitting in a fridge next to the crate."
 
@@ -96,7 +108,6 @@ consortium pilot.
 
 - Both nodes, powered, labelled with their device addresses
 - The BOM sheet with **real prices** (`H2-01`)
-- The Polygon Amoy explorer link, on a card, as a QR
 - The GitHub repo URL, as a QR
 - `hardware/POWER.md` and `hardware/BENCHMARKS.md` open in a tab — real measurements settle
   arguments faster than any slide
@@ -111,3 +122,6 @@ Naming these first converts each from a weakness into evidence of engineering ju
 4. We store raw records in SQLite on a laptop. Production needs Postgres and a retention policy.
 5. We have not done a formal security review of the contracts, and we would not deploy them to
    mainnet without one.
+6. The chain we anchor to for this demo is local, not public — we built and tested a Polygon
+   Amoy path and deliberately dropped it (see the blockchain-necessity answer above for what
+   that costs and what still holds without it).
