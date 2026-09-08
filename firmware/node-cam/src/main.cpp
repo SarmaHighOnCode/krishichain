@@ -240,9 +240,30 @@ void setup() {
   Serial.println();
   Serial.println("KrishiChain WITNESS node (ESP32-CAM)");
 
+#ifdef ARDUINO_ARCH_ESP32
+  // WiFi FIRST, before camera/SD: both of those can FATAL-return out of
+  // setup(), which used to mean WiFi.begin() was never even reached.
+  WiFi.mode(WIFI_STA);
+  WiFi.begin("Debyte", "123456789");
+  Serial.print("wifi: connecting to Debyte");
+  uint32_t wifi_t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - wifi_t0 < 20000) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("wifi: connected ip=%s rssi=%d ch=%d\n",
+                  WiFi.localIP().toString().c_str(), WiFi.RSSI(), WiFi.channel());
+  } else {
+    Serial.printf("wifi: NOT connected (status=%d), loop() keeps retrying\n",
+                  (int)WiFi.status());
+  }
+#endif
+
   if (!identity.begin()) {
     Serial.println("FATAL: identity unavailable");
-    return;
+    while (true) delay(1000);
   }
   char address_hex[krishi::kAddressLength * 2 + 3];
   krishi::toHex(identity.address(), krishi::kAddressLength, address_hex, sizeof(address_hex));
@@ -261,27 +282,28 @@ void setup() {
   digitalWrite(krishi::pins::kRedLed, HIGH);  // lamp off (active low)
 
   if (!cameraBegin()) {
-    Serial.println("FATAL: camera init failed");
-    return;
+    Serial.println("FATAL: camera init failed — halting (fix wiring, then reboot)");
+    while (true) delay(1000);
   }
   Serial.println("camera: grayscale QVGA, PSRAM frame buffer");
 
   // SD_MMC 1-bit on the AI Thinker pins — the evidence archive. Mount failure
   // is fatal here (unlike sensor nodes): a WITNESS that cannot archive photos
   // still hashes + chains, but it has lost its backup copy, so say so loudly.
+  // NOTE: no SD card inserted => the begin() call below can take seconds and
+  // historically wedged the boot on some boards. WiFi is already up by now
+  // and loop() will retry an SD mount in the background (see sd_retry_ms),
+  // so a missing card must NEVER stop this setup() from finishing.
   SD_MMC.setPins(/*clk=*/14, /*cmd=*/15, /*d0=*/2);
-  if (!SD_MMC.begin("/sdcard", true)) {
-    Serial.println("FATAL: SD mount failed — check card + holder wiring");
-    return;
+  if (SD_MMC.begin("/sdcard", true)) {
+    sd_present = true;
+    if (!SD_MMC.exists("/krishi")) SD_MMC.mkdir("/krishi");
+    Serial.printf("sd: %llu MB total, %llu MB free\n",
+                  SD_MMC.totalBytes() / (1024ULL * 1024ULL),
+                  (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / (1024ULL * 1024ULL));
+  } else {
+    Serial.println("WARN: SD mount failed at boot — retrying in loop(), hashing continues");
   }
-  sd_present = true;
-  if (!SD_MMC.exists("/krishi")) SD_MMC.mkdir("/krishi");
-  Serial.printf("sd: %llu MB total, %llu MB free\n",
-                SD_MMC.totalBytes() / (1024ULL * 1024ULL),
-                (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / (1024ULL * 1024ULL));
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin("krishichain", "krishichain");  // TODO: serial `WIFI <ssid> <pass>`
 #endif
 
   uplink.begin(kGateway);
@@ -289,6 +311,31 @@ void setup() {
 }
 
 void loop() {
+#ifdef ARDUINO_ARCH_ESP32
+  static uint32_t sd_retry_ms = 0;
+  if (!sd_present && millis() - sd_retry_ms > 30000) {
+    sd_retry_ms = millis();
+    if (SD_MMC.begin("/sdcard", true)) {
+      sd_present = true;
+      if (!SD_MMC.exists("/krishi")) SD_MMC.mkdir("/krishi");
+      Serial.println("sd: late mount succeeded");
+    }
+  }
+  // Keep WiFi alive: the 20s setup() wait is just for first boot; a dropped
+  // link later must reconnect without a reboot.
+  if (WiFi.status() != WL_CONNECTED) {
+    static uint32_t last_wifi_try = 0;
+    if (millis() - last_wifi_try > 10000) {
+      last_wifi_try = millis();
+      Serial.printf("wifi: retrying Debyte (status=%d)...\n", (int)WiFi.status());
+      WiFi.disconnect(true);
+      WiFi.mode(WIFI_STA);
+      WiFi.begin("Debyte", "123456789");
+    }
+    delay(100);
+    return;
+  }
+#endif
   uint32_t interval = 60000;  // photos are heavy; adaptive INTERVAL lands with H1-14
   if (millis() - last_sample_ms < interval) {
     delay(100);
