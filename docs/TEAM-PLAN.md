@@ -65,7 +65,6 @@ gantt
     Ingest + verify pipeline                     :s1b, after s1a, 5h
     Merkle batcher + anchor service              :s1c, after s1b, 5h
     Rules engine + query API                     :s1d, after s1c, 4h
-    Amoy deploy + hardening                      :s1e, 34, 4h
 
     section S2 web
     Design system + verify page shell            :s2a, 02, 5h
@@ -113,7 +112,6 @@ Exit criteria:
 
 - [ ] Full demo script run end to end, twice, timed
 - [ ] Offline test, tamper test, unverifiable test all pass
-- [ ] Amoy deployment live with an explorer link in the deck
 - [ ] Backup board flashed, fallback video recorded
 
 ### P7 · Hours 41–48 — Freeze, polish, sleep
@@ -187,7 +185,7 @@ check.
 | 10 | `S1-10` Rules engine → `flagLot` |
 | 11 | `S1-11` Query API: lot journey, proofs, recall subtree |
 | 12 | `S1-12` EPCIS 2.0 projection |
-| 13 | `S1-13` Amoy deployment + funded key (**do this at hour 30, not hour 46**) |
+| 13 | ~~`S1-13` Amoy deployment~~ — cut. Demo is local-only; see §6, cut item 5. |
 
 **Ship `S1-02` and `S1-05` early even if rough.** They are not your features; they are two other
 people's unblocking.
@@ -271,7 +269,8 @@ cut removes work without removing the story.
 2. EPCIS projection (keep the *mapping table* in the deck; it still scores)
 3. Custody handoff wallet signature → replace with a server-side signed handoff
 4. Ops dashboard live updates → manual refresh button
-5. Amoy deployment → local chain only, and say so honestly
+5. ~~Amoy deployment → local chain only, and say so honestly~~ — **already cut.** Say so
+   honestly on the honest-limits slide (`DEMO-SCRIPT.md`).
 6. Second node → run one node and simulate the second with `sim-node.ts`, disclosed on the slide
 
 **Never cut:** device signing, the hash chain, the offline buffer, client-side verification.

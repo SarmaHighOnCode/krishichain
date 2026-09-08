@@ -23,8 +23,12 @@ import { VerifyPanel, type InclusionProof } from "../../../components/VerifyPane
 import { networkForChainId, readBatchAnchorAddress } from "../../../lib/deployments";
 
 const GATEWAY = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:8080";
-const RPC_URL = process.env.NEXT_PUBLIC_VERIFY_RPC_URL ?? "";
-const CHAIN_ID = Number(process.env.NEXT_PUBLIC_VERIFY_CHAIN_ID ?? "80002");
+// Local chain by default — a public Amoy mirror was built and deliberately dropped
+// (TEAM-PLAN.md §6, cut item 5). The fallback below must match that decision, not the
+// network we no longer deploy to: defaulting to a chain with nothing anchored on it would
+// make the verification button silently fail for anyone whose env isn't fully set.
+const RPC_URL = process.env.NEXT_PUBLIC_VERIFY_RPC_URL ?? "http://127.0.0.1:8545";
+const CHAIN_ID = Number(process.env.NEXT_PUBLIC_VERIFY_CHAIN_ID ?? "31337");
 
 interface LotRecord {
   seq: number;

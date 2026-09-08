@@ -17,14 +17,15 @@ one before it. A heterogeneous swarm — ESP32 HEADs, S2 Lolin LEAFs, ESP32-CAM 
 phone virtual-nodes — relays everything to a laptop field base with ESP-NOW → WiFi fallback,
 so evidence gets out one way or another. See [ADR-0004](docs/adr/0004-heterogeneous-swarm.md). The result is a data stream that is **attributable** (this exact commissioned
 device said this), **gapless** (records cannot be silently dropped or reordered, even while
-offline), and **independently verifiable** (a consumer's phone recomputes a Merkle proof against
-a root anchored on a public chain — without trusting our servers).
+offline), and **independently verifiable** (a consumer's phone recomputes a Merkle proof
+against a root read from a chain node — a process it never trusts our gateway to speak for).
 
 ## What a judge can do in 90 seconds
 
 1. Scan the QR on a tomato crate → see its journey: farm → aggregator → cold truck → retail.
-2. Press **Verify independently** → the browser fetches the Merkle root from Polygon Amoy and
-   recomputes the proof locally. Green badge = the data existed at anchor time, unaltered.
+2. Press **Verify independently** → the browser fetches the Merkle root straight from the
+   chain node (not from our gateway) and recomputes the proof locally. Green badge = the
+   data existed at anchor time, unaltered.
 3. Open the cold box lid → the transit node logs a tamper + temperature excursion → the lot is
    flagged **COLD-CHAIN BREACH** on-chain within seconds, and the consumer page reflects it.
 4. Pull the WiFi. The node keeps recording into its hash-chained flash buffer. Plug it back in →
@@ -47,7 +48,7 @@ flowchart LR
     DB[("Event store<br/>raw records + proofs")]
   end
 
-  subgraph CHAIN["On-chain (Anvil + Polygon Amoy)"]
+  subgraph CHAIN["On-chain (local Hardhat node)"]
     C1["DeviceRegistry"]
     C2["ActorRegistry"]
     C3["LotRegistry"]

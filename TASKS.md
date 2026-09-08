@@ -127,9 +127,17 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
   acknowledged records.
 - **Non-goals** No compression, no wear-levelling beyond the ring.
 
-### `H1-07` · Uplink + `ackSeq` flow control [P0] [3h]
+### `H1-07` · Uplink + `ackSeq` flow control [P0] [3h] — **landed**
 - **Accept** Batches ≤ 100 records; only advances the tail on `200` + `ackSeq`; exponential
   backoff 2 s → 60 s on 5xx; **stops uploading and blinks fault on `401`**.
+- `identity.cpp`/`chain.cpp`/`ringbuffer.cpp`/`uplink.cpp` all exist now and `node-head`
+  compiles clean. The ESP32 build step in `.github/workflows/ci.yml` is still
+  `continue-on-error`, but for a different reason than it was: `kmackay/micro-ecc`'s
+  `uECC_*` symbols collide at link time with the ESP32 Arduino core's own bundled
+  tinycrypt (pulled in via BT/BLE-mesh regardless of whether the sketch uses Bluetooth).
+  Whoever owns H1-01's ecc library choice picks the fix (exclude the BT libs, rename
+  symbols, or a differently-vendored ecc lib) and removes `continue-on-error` once
+  `node-head` links.
 
 ### `H1-08` · Store-and-forward drain [P0] [2h]
 - **Accept** **The demo test:** pull WiFi for 10 minutes, restore it → the entire backlog uploads
@@ -214,11 +222,13 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 
 ### `S1-09` · Anchor service [P0] [3h]
 - **Accept** Persisted nonce high-water mark; survives an RPC timeout without double-anchoring;
-  writes local chain synchronously and Amoy asynchronously.
+  writes to the local chain. (A dual-write to Amoy was built and dropped — `S1-13`, cut.)
 
 ### `S1-10` · Rules engine [P0] [2h] — breach ≤ 10 s after the causing record
 ### `S1-11` · Query API [P0] [3h] · `S1-12` · EPCIS projection [P1] [3h]
-### `S1-13` · Amoy deploy + funded key [P1] [2h] — **hour 30, not hour 46**
+### ~~`S1-13` · Amoy deploy + funded key~~ — **cut.** Demo is local-only; see `TEAM-PLAN.md`
+§6 cut item 5 and the "why blockchain at all" answer in `docs/JUDGING.md`. The working
+implementation is in git history if the team revisits this.
 
 ---
 
@@ -259,7 +269,6 @@ Priorities: **P0** demo fails without it · **P1** demo is weak without it · **
 ### `GATE-2` · Hour 38 [ALL] [P0] [4h]
 - [ ] Full demo run end to end, twice, timed
 - [ ] Offline test · tamper test · unverifiable test all pass
-- [ ] Amoy live with an explorer link
 - [ ] Backup board ready, fallback video recorded
 
 **Code freeze: hour 44.**
