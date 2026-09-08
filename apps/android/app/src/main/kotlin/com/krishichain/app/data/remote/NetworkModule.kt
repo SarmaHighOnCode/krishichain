@@ -15,7 +15,11 @@ import java.util.concurrent.TimeUnit
  */
 object NetworkModule {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    // explicitNulls = false: POST bodies built here (DeviceCommissionRequest.lat/lon,
+    // CompanionEvidenceDto.imu, ...) use nullable fields for "field genuinely absent", and the
+    // gateway's Zod schemas treat those fields as optional (undefined), not nullable — an
+    // explicit `"lat": null` would fail validation where omitting the key entirely passes.
+    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
