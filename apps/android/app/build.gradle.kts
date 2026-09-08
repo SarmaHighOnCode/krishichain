@@ -7,9 +7,34 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-/** Read a Gradle property, or fall back to its `gradle.properties` default. See that file for
- *  the full explanation of these knobs and how they mirror the repo root's `.env.example`. */
-fun gradleProp(name: String): String = (project.findProperty(name) as String?).orEmpty()
+/**
+ * `local.properties` (gitignored — see apps/android/.gitignore) as a personal-machine override
+ * layer between the checked-in `gradle.properties` defaults and an explicit `-P` flag. Written
+ * automatically by `scripts/local-lan-demo.ps1` after a local-chain-over-LAN run, so a later
+ * plain `./gradlew installDebug` — no flags — keeps pointing at your machine's LAN IP and the
+ * last contract address that script deployed, instead of the emulator alias every time.
+ */
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+/**
+ * Read a config knob with priority: an explicit `-PkrishichainX=...` on this invocation's
+ * command line, then `local.properties`, then the checked-in `gradle.properties` default. See
+ * that file for the full explanation of these knobs and how they mirror the repo root's
+ * `.env.example`.
+ *
+ * `gradle.startParameter.projectProperties` — not `project.findProperty` — is what actually
+ * distinguishes "passed with -P this run" from "came from gradle.properties": by the time
+ * `findProperty` resolves a value, Gradle has already merged both sources and the distinction is
+ * gone, which is exactly the layer `local.properties` needs to slot into.
+ */
+fun gradleProp(name: String): String {
+    gradle.startParameter.projectProperties[name]?.let { if (it.isNotBlank()) return it }
+    localProperties.getProperty(name)?.let { if (it.isNotBlank()) return it }
+    return (project.findProperty(name) as String?).orEmpty()
+}
 
 android {
     namespace = "com.krishichain.app"
