@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Gateway fetch + the independent public-RPC read in VerifyPanel (see docs/CLAUDE.md
+         invariant on client-side verification never trusting the gateway's own root). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.KrishiChain"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic: the emulator's gateway alias (http://10.0.2.2:8080) and a
+             LAN gateway on a real device are both plain HTTP for this demo phase; the public RPC
+             read is HTTPS regardless. -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.KrishiChain">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
