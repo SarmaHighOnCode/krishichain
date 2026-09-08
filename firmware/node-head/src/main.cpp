@@ -179,7 +179,7 @@ void setup() {
   cfg.begin("krishi_cfg", true);
   String ssid = cfg.getString("ssid", "KrishiGateway");
   String pass = cfg.getString("pass", "krishipass");
-  String gw = cfg.getString("gw", gGatewayUrl);
+  String gw = cfg.getString("gateway", "http://192.168.4.1/api");
   strncpy(gGatewayUrl, gw.c_str(), sizeof(gGatewayUrl) - 1);
   cfg.end();
 
@@ -195,7 +195,7 @@ void setup() {
   gUplink.begin(gGatewayUrl);
 
   if (gIdentity.wasCommissionedThisBoot()) {
-    char addrHex[43];
+    char addrHex[41];
     toHex(gIdentity.address(), kAddressLength, addrHex, sizeof(addrHex));
     Serial.printf("COMMISSIONED ADDRESS: %s\n", addrHex);
   }
@@ -240,7 +240,7 @@ void loop() {
         gChain.advance(digest);
       }
     }
-    nextInterval(gSamplingState, record.t, record.flags, gSamplingCfg);
+    gSamplingState.intervalMs = nextInterval(gSamplingState, record.t, record.flags, gSamplingCfg);
     gLastSampleMs = now;
   }
 
@@ -263,6 +263,7 @@ void loop() {
   }
 
   updateLed();
+  delay(10); // Prevent CPU starvation WDT resets
 }
 
 #ifdef KRISHI_NATIVE

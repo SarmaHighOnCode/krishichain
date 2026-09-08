@@ -37,6 +37,7 @@ uint32_t nextInterval(SamplingState& state, int16_t t, uint8_t flags, const Samp
 }
 
 bool requiresImmediateSample(const SamplingState& state, uint8_t flags) {
+  if (!state.primed) return true;
   return flags != state.lastFlags;
 }
 
